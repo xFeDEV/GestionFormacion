@@ -1,0 +1,720 @@
+
+FastAPI + MySQL + JWT (SQLAlchemy usando SQL)
+
+# Crear entorno virtual Python 3.13
+
+## 1. Configuración inicial del proyecto
+
+### 1.1. Crear entorno virtual 
+### 1.2. Crear estructura de directorios
+
+Gestion_Formacion/
+│
+├── app/
+│   │
+│   ├── api/
+│   │   │                    # Endpoints de la API
+│   │   ├── auth.py          # Endpoints de autenticación
+│   │   ├── users.py         # Endpoints de usuarios
+│   │   └── ...
+│   │   │
+│   │   └── dependencies.py      # Dependencias para los endpoints       
+│   │
+│   ├── crud/
+│   │   ├── users.py            # Consultas SQL para usuarios
+│   │   └── ... 
+│   │   
+│   ├── schemas/
+│   │   ├── users.py             # Modelos Pydantic para usuarios
+│   │   └── ...
+│   │
+│   └── utils/
+│       └── helpers.py           # Funciones útiles
+│
+├── core/
+│   ├── security.py          # Lógica de seguridad y JWT
+│   ├── database.py          # Conexión a la base de datos
+│   └── config.py            # Configuraciones globales
+│
+├── tests/
+│   ├── test_auth.py
+│   └── ...
+│
+├── main.py                      # Punto de entrada de la aplicación
+├── .env                         # Variables de entorno (no incluir en Git)
+├── .env.example                 # Ejemplo de variables de entorno
+├── .gitignore
+├── requirements.txt
+└── README.md
+
+
+
+
+
+### 1.3. Instalar dependencias
+
+pip install fastapi uvicorn
+
+pip install pydantic-settings
+
+pip install sqlalchemy
+
+pip install pymysql
+
+pip install pydantic[email]
+
+
+
+
+
+### 3. Crear archivo de configuración de variables de entorno (.env)
+
+# .env
+DB_HOST=localhost
+DB_PORT=3306
+DB_USER=usuario
+DB_PASSWORD=contraseña
+DB_NAME=fastapi_db
+
+# Secreto para JWT (generar uno seguro)
+JWT_SECRET=tu_clave_secreta_muy_segura_y_larga
+JWT_ALGORITHM=HS256
+JWT_ACCESS_TOKEN_EXPIRE_MINUTES=30
+
+También crea un `.env.example` con la misma estructura pero sin valores sensibles.
+
+
+
+
+## 2. Configuración de la base de datos
+
+
+### 2.1. Crear archivo de configuración (core/config.py)
+
+from pydantic_settings import BaseSettings
+import os
+from dotenv import load_dotenv
+
+# librería en Python que permite cargar variables de entorno
+load_dotenv()
+
+class Settings(BaseSettings):
+    PROJECT_NAME: str = "Gestión Formación"
+    PROJECT_VERSION: str = "0.0.1"
+    PROJECT_DESCRIPTION: str = "Aplicación para administrar la gestión de la información"
+
+    # Configuración de la base de datos
+    DB_HOST: str = os.getenv("DB_HOST", "localhost")
+    DB_PORT: int = int(os.getenv("DB_PORT", "3306"))
+    DB_USER: str = os.getenv("DB_USER", "root")
+    DB_PASSWORD: str = os.getenv("DB_PASSWORD", "")
+    DB_NAME: str = os.getenv("DB_NAME", "")
+
+    DATABASE_URL: str = f"mysql+pymysql://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}"
+    
+    # Configuración JWT
+    jwt_secret: str = os.getenv("JWT_SECRET")
+    jwt_algorithm: str = os.getenv("JWT_ALGORITHM", "HS256")
+    jwt_access_token_expire_minutes: int = int(os.getenv("JWT_ACCESS_TOKEN_EXPIRE_MINUTES", "30"))
+
+    class Config:
+        env_file = ".env"
+
+settings = Settings()
+
+
+
+
+
+### 2.2. Configuración de la conexión a la base de datos (core/database.py)
+
+"""
+Configuración de conexión a la base de datos usando SQLAlchemy.
+
+Este módulo proporciona las funcionalidades necesarias para conectarse a la base de datos
+y administrar sesiones de manera eficiente. Implementa las mejores prácticas para conexiones
+a bases de datos relacionales en aplicaciones FastAPI.
+
+"""
+
+from typing import Generator
+import logging
+
+from sqlalchemy import create_engine, text, MetaData
+from sqlalchemy.orm import sessionmaker, declarative_base
+from sqlalchemy.exc import SQLAlchemyError, OperationalError, DisconnectionError
+from sqlalchemy.pool import QueuePool
+
+from config import settings 
+
+# Configurar el módulo de logging de Python y se usa para crear un registrador de eventos (logger)
+logger = logging.getLogger(__name__)
+
+# Crear el motor de base de datos con configuraciones óptimas
+engine = create_engine(
+    settings.DATABASE_URL,
+    echo=True,           # Activar o desactivar el modo debug para imprimir en consola todas las sentencias SQL
+    pool_pre_ping=True,  # Verifica que las conexiones estén activas antes de usarlas
+    pool_recycle=3600,   # Recicla conexiones después de una hora para evitar el error "connection has been closed"
+    pool_size=10,        # Número máximo de conexiones permanentes en el pool
+    max_overflow=20,     # Conexiones adicionales permitidas temporalmente cuando el pool está lleno
+    pool_timeout=30,     # Tiempo máximo de espera para obtener una conexión del pool
+    poolclass=QueuePool  # Clase de pool para manejo eficiente de conexiones
+)
+
+# Crear la fábrica de sesiones
+# - autocommit=False: Los cambios solo se guardan cuando se hace commit explícitamente
+# - autoflush=False: Las operaciones pendientes solo se envían a la BD cuando se hace flush explícitamente
+# - bind=engine: Vincula la sesión al motor creado anteriormente
+SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+
+# Declarar la base para los modelos ORM
+Base = declarative_base()
+
+# Instancia de MetaData para trabajar con tablas
+metadata = MetaData()
+
+def get_db() -> Generator:
+    """
+    Dependencia para obtener una sesión de base de datos en FastAPI.
+    
+    Crea una nueva sesión por cada solicitud y la cierra automáticamente
+    al finalizar, incluso si ocurre alguna excepción.
+    
+    Yields:
+        Session: Una sesión de SQLAlchemy para interactuar con la base de datos.
+    
+    Example:
+        ```python
+        @app.get("/items/")
+        def read_items(db: Session = Depends(get_db)):
+            return db.query(Item).all()
+        ```
+    """
+    db = SessionLocal()
+    try:
+        yield db  # El 'yield' permite que la función de endpoint use la sesión.
+    except SQLAlchemyError as e:
+        db.rollback() # revierte todos los cambios en la base de datos
+        logger.error(f"Error de base de datos: {str(e)}")
+        raise # Propaga la excepción para que FastAPI pueda manejarla
+    finally:
+        db.close() # Cierra la sesión de base de datos y libera los recursos asociados.
+        # Esto es esencial para evitar fugas de memoria y conexiones abiertas.
+
+
+def check_database_connection() -> bool:
+    """
+    Verifica la conexión a la base de datos.
+    
+    Returns:
+        bool: True si la conexión es exitosa, False en caso contrario.
+    """
+    try:
+        with engine.connect() as connection:
+            connection.execute(text("SELECT 1"))
+        return True
+    except (OperationalError, DisconnectionError) as e:
+        logger.error(f"Error de conexión a la base de datos: {str(e)}")
+        return False
+
+# if __name__ == "__main__":
+#     resultado = check_database_connection()
+#     print("¿Conexión exitosa?:", resultado)
+
+
+
+###  Insertar y corregir base de datos.
+
+INSERT INTO rol (id_rol, nombre) VALUES 
+(1, 'superadmin'),
+(2, 'admin'),
+(3, 'instructor');
+
+DROP TABLE programacion;
+DROP TABLE usuario;
+
+
+CREATE TABLE usuario(
+    id_usuario INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    nombre_completo VARCHAR(80),
+    identificacion CHAR(12),
+    id_rol INT UNSIGNED,
+    correo VARCHAR(100) UNIQUE,
+    pass_hash VARCHAR(150),
+    tipo_contrato VARCHAR(50),
+    telefono VARCHAR(15),
+    estado BOOLEAN,
+    cod_centro INT UNSIGNED,
+    FOREIGN KEY(id_rol) REFERENCES rol(id_rol),
+    FOREIGN KEY(cod_centro) REFERENCES centro_formacion(cod_centro)
+);
+
+ALTER TABLE usuario
+MODIFY COLUMN pass_hash VARCHAR(150);
+
+
+CREATE TABLE programacion(
+    id_programacion INT UNSIGNED AUTO_INCREMENT,
+    id_instructor INT UNSIGNED,
+    cod_ficha INT UNSIGNED,
+    fecha_programada DATE,
+    horas_programadas INT,
+    hora_inicio TIME,
+    hora_fin TIME,
+    cod_competencia INT UNSIGNED,
+    cod_resultado INT UNSIGNED,
+    id_user INT UNSIGNED,
+    PRIMARY KEY(id_programacion),
+    FOREIGN KEY(id_instructor) REFERENCES usuario(id_usuario),
+    FOREIGN KEY(cod_ficha) REFERENCES grupo(cod_ficha),
+    FOREIGN KEY(cod_competencia) REFERENCES competencia(cod_competencia),
+    FOREIGN KEY(cod_resultado) REFERENCES resultado_aprendizaje(cod_resultado),
+    FOREIGN KEY(id_user) REFERENCES usuario(id_usuario)
+);
+
+DELETE FROM regional;
+INSERT INTO regional (cod_regional, nombre) 
+VALUES (66, 'REGIONAL RISARALDA');
+
+INSERT INTO centro_formacion (cod_centro, nombre_centro, cod_regional) 
+VALUES (9121, 'CENTRO ATENCION SECTOR AGROPECUARIO', 66);
+
+
+
+## 3. Schemas Pydantic
+
+### 3.1. Crear schemas para usuarios (app/schemas/users.py)
+from pydantic import BaseModel, EmailStr, Field
+from typing import Optional
+
+class UserBase(BaseModel):
+    nombre_completo: str = Field(min_length=3, max_length=80)
+    identificacion: str = Field(min_length=6, max_length=12)
+    id_rol: int
+    correo: EmailStr
+    tipo_contrato: str = Field(min_length=6, max_length=50)
+    telefono: str = Field(min_length=7, max_length=15)
+    estado: bool
+    cod_centro: int
+
+class UserCreate(UserBase):
+    pass_hash: str = Field(min_length=8)
+
+class UserUpdate(BaseModel):
+    nombre_completo: Optional[str] = Field(default=None, min_length=3, max_length=80)
+    tipo_contrato: Optional[str] = Field(default=None, min_length=6, max_length=50)
+    telefono: Optional[str] = Field(default=None, min_length=7, max_length=15)
+    estado: Optional[bool] = None
+
+class UserOut(UserBase):
+    id_usuario: int
+
+
+
+
+## 4. CRUD usuarios
+
+from sqlalchemy.orm import Session
+from sqlalchemy import text
+from typing import Optional
+import logging
+
+from app.schemas.users import UserCreate, UserUpdate
+
+logger = logging.getLogger(__name__)
+
+def create_user(db: Session, user: UserCreate) -> Optional[bool]:
+    try:
+        query = text("""
+            INSERT INTO usuario (
+                nombre_completo, identificacion, id_rol,
+                correo, pass_hash, tipo_contrato,
+                telefono, estado, cod_centro
+            ) VALUES (
+                :nombre_completo, :identificacion, :id_rol,
+                :correo, :pass_hash, :tipo_contrato,
+                :telefono, :estado, :cod_centro
+            )
+        """)
+        db.execute(query, user.model_dump())
+        db.commit()
+        return True
+    except Exception as e:
+        db.rollback()
+        logger.error(f"Error al crear usuario: {e}")
+        raise Exception("Error de base de datos al crear el usuario")
+
+def get_user_by_email(db: Session, email: str):
+    try:
+        query = text("""SELECT *
+                     FROM usuario 
+                     WHERE correo = :email""")
+        result = db.execute(query, {"email": email}).mappings().first()
+        return result
+    except Exception as e:
+        logger.error(f"Error al obtener usuario por email: {e}")
+        raise Exception("Error de base de datos al obtener el usuario")
+
+def update_user(db: Session, user_id: int, user_update: UserUpdate) -> bool:
+    try:
+        fields = user_update.model_dump(exclude_unset=True)
+        if not fields:
+            return False
+        set_clause = ", ".join([f"{key} = :{key}" for key in fields])
+        fields["user_id"] = user_id
+
+        query = text(f"UPDATE usuario SET {set_clause} WHERE id_usuario = :user_id")
+        db.execute(query, fields)
+        db.commit()
+        return True
+    except Exception as e:
+        db.rollback()
+        logger.error(f"Error al actualizar usuario: {e}")
+        raise Exception("Error de base de datos al actualizar el usuario")
+
+
+
+
+## 5. Endpoints usuarios
+
+from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy.orm import Session
+from core.database import get_db
+from app.schemas.users import UserCreate, UserUpdate
+from app.crud import users as crud_users
+
+router = APIRouter()
+
+@router.post("/", status_code=status.HTTP_201_CREATED)
+def create_user(user: UserCreate, db: Session = Depends(get_db)):
+    try:
+        crud_users.create_user(db, user)
+        return {"message": "Usuario creado correctamente"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.get("/users/by-email")
+def get_user(email: str, db: Session = Depends(get_db)):
+    try:
+        user = crud_users.get_user_by_email(db, email)
+        if not user:
+            raise HTTPException(status_code=404, detail="Usuario no encontrado")
+        return user
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.put("/{user_id}")
+def update_user(user_id: int, user: UserUpdate, db: Session = Depends(get_db)):
+    try:
+        success = crud_users.update_user(db, user_id, user)
+        if not success:
+            raise HTTPException(status_code=400, detail="No se pudo actualizar el usuario")
+        return {"message": "Usuario actualizado correctamente"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+
+## 6 configurar archivo main 
+
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+from app.api import users
+
+app = FastAPI()
+
+# Incluir en el objeto app los routers
+app.include_router(users.router, prefix="/users", tags=["users"])
+
+# Configuración de CORS para permitir todas las solicitudes desde cualquier origen
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # Permitir solicitudes desde cualquier origen
+    allow_credentials=True,
+    allow_methods=["GET", "POST", "PUT", "DELETE"],  # Permitir estos métodos HTTP
+    allow_headers=["*"],  # Permitir cualquier encabezado en las solicitudes
+)
+
+@app.get("/")
+def read_root():
+    return {
+                "message": "ok",
+                "autor": "ADSO 2847248"
+            }
+
+
+
+## 7. Seguridad y JWT
+
+pip install passlib[bcrypt]
+
+pip install python-jose[cryptography]
+
+### 7.1. Implementar funciones de seguridad (/core/security.py)
+
+from passlib.context import CryptContext
+from datetime import datetime, timedelta, timezone
+from jose import JWTError, jwt
+from core.config import settings
+
+# Configurar hashing de contraseñas
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+
+# Función para generar un hashed_password
+def get_hashed_password(password: str):
+    return pwd_context.hash(password)
+
+# Función para verificar una contraseña hashada
+def verify_password(plain_password: str, hashed_password: str):
+    return pwd_context.verify(plain_password, hashed_password)
+
+# Función para crear un token JWT
+def create_access_token(data: dict):
+    to_encode = data.copy()
+    expire = datetime.now(tz=timezone.utc) + timedelta(minutes=settings.jwt_access_token_expire_minutes)
+    to_encode.update({"exp": expire})
+    encoded_jwt = jwt.encode(to_encode, settings.jwt_secret, algorithm=settings.jwt_algorithm)
+    return encoded_jwt
+
+# Función para verificar si un token JWT es valido
+async def verify_token(token: str):
+    try:
+        payload = jwt.decode(token, settings.jwt_secret, algorithms=[settings.jwt_algorithm])
+        user_id = payload.get("sub")
+        return int(user_id) if user_id is not None else None
+    except jwt.ExpiredSignatureError: # Token ha expirado
+        return None
+    except JWTError:
+        return None
+
+
+
+
+## 8. Dependencias y autenticación
+
+### 8.1. Crear dependencias para autenticación (app/api/dependencies.py)
+
+from fastapi import Depends, HTTPException
+from sqlalchemy.orm import Session
+from app.crud.users import get_user_by_email, get_user_by_id
+from core.security import verify_password, verify_token
+from core.database import get_db
+from fastapi.security import OAuth2PasswordBearer
+
+
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/access/token")
+
+def get_current_user(
+        token: str = Depends(oauth2_scheme),
+        db: Session = Depends(get_db)
+):
+    user = verify_token(token)
+    if user is None:
+        raise HTTPException(status_code=401, detail="Token Invalido")
+    user_db = get_user_by_id(db, user)
+    if user_db is None:
+        raise HTTPException(status_code=404, detail="Usuario no encontrado")
+    if not user_db.user_status:
+        raise HTTPException(status_code=403, detail="Usuario inactivo. No autorizado")
+    return user_db
+
+
+def authenticate_user(username: str, password: str, db: Session):
+    user = get_user_by_email(db, username)
+    if not user:
+        return False
+    if not verify_password(password, user.passhash):
+        return False
+    return user
+
+
+## 9. Endpoints auth
+
+### 9.1. Endpoint de autenticación (app/api/auth.py)
+
+from typing import Annotated
+from fastapi import APIRouter, Depends,HTTPException
+from sqlalchemy.orm import Session
+from app.api.dependencies import authenticate_user
+from app.schemas.auth import ResponseLoggin
+from core.security import create_access_token
+from core.database import get_db
+from fastapi.security import OAuth2PasswordRequestForm
+
+
+router = APIRouter()
+
+@router.post("/token", response_model=ResponseLoggin)
+async def login_for_access_token(
+    form_data: Annotated[OAuth2PasswordRequestForm, Depends()],
+    db: Session = Depends(get_db)
+):
+    user = authenticate_user(form_data.username, form_data.password, db)
+    if not user:
+        raise HTTPException(
+            status_code=401,
+            detail="Datos Incorrectos en email o password",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    access_token = create_access_token(
+        data={"sub": str(user.user_id), "rol":user.user_role}
+    )
+
+    return ResponseLoggin(
+        user=user,
+        access_token=access_token
+    )
+
+
+## corregir str(user.user_id)
+
+## Crear clave secreta
+## openssl rand -hex 32
+
+## Si hay errores de inconpatibilidad bcrypt Instalar 
+## pip install bcrypt==3.2.0 passlib==1.7.4 --force-reinstall
+
+###  modificar 
+
+# Función para verificar si un token JWT es valido
+def verify_token(token: str):
+    try:
+        payload = jwt.decode(token, settings.jwt_secret, algorithms=[settings.jwt_algorithm])
+        user_id = payload.get("sub")
+        return int(user_id) if user_id is not None else None
+    except jwt.ExpiredSignatureError: # Token ha expirado
+        print("Token expirado")
+        return None
+    except JWTError as e:
+        print("Error al decodificar el token:", str(e))
+        return None
+
+
+
+## datos ejemplo
+
+{
+  "nombre_completo": "Sofia Luna",
+  "identificacion": "10938340452",
+  "id_rol": 2,
+  "correo": "sofia@gmail.com",
+  "tipo_contrato": "Planta",
+  "telefono": "31238349384",
+  "estado": true,
+  "cod_centro": 9121,
+  "pass_hash": "12345678"
+}
+
+{
+  "nombre_completo": "Alejandro Orozco",
+  "identificacion": "10883437283",
+  "id_rol": 3,
+  "correo": "alejo@gmail.com",
+  "tipo_contrato": "Contratista",
+  "telefono": "31373643380",
+  "estado": true,
+  "cod_centro": 9121,
+  "pass_hash": "12345678"
+}
+
+{
+  "nombre_completo": "Maria Veles",
+  "identificacion": "1088765239",
+  "id_rol": 1,
+  "correo": "maria@gmail.com",
+  "tipo_contrato": "Planta",
+  "telefono": "31183483947",
+  "estado": true,
+  "cod_centro": 9121,
+  "pass_hash": "12345678"
+}
+
+
+## 10. Proteger los endpoints 
+
+# modificar api/user
+
+
+@router.post("/create", status_code=status.HTTP_201_CREATED)
+def create_user(
+    user: UserCreate,
+    db: Session = Depends(get_db),
+    user_token: UserOut = Depends(get_current_user)
+):
+    """
+        Debes usar id_rol que exista por ahora tenemos 1 superadmin, 2 admin y 3 instructor
+    """
+    print("id de rol ", user_token.id_rol, " su tipo ", type(user_token.id_rol))
+    
+    if user_token.id_rol == 2:
+        if user.id_rol == 1 or user.id_rol == 2:
+            raise HTTPException(status_code=401, detail="Usuario no autorizado")
+
+    if user_token.id_rol == 3:
+        raise HTTPException(status_code=401, detail="Usuario no autorizado")
+    
+    try:
+        user_validate = crud_users.get_user_by_email(db, user.correo)
+        if user_validate:
+            raise HTTPException(status_code=400, detail="Correo ya registrado")
+        
+        crud_users.create_user(db, user)
+        return {"message": "Usuario creado correctamente"}
+    except SQLAlchemyError as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+## obtener todos los usuarios de un centro
+
+
+@router.get("/get-by-centro", response_model=List[UserOut])
+def get_users_by_centro(cod_centro: int, db: Session = Depends(get_db)):
+    try:
+        users = crud_users.get_users_by_centro(db, cod_centro)
+        if not users:
+            raise HTTPException(status_code=404, detail="No se encontraron usuarios para este centro")
+        return users
+    except SQLAlchemyError as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+def get_users_by_centro(db: Session, cod_centro: int):
+    try:
+        query = text("""
+            SELECT id_usuario, nombre_completo, identificacion, id_rol,
+                   correo, tipo_contrato, telefono, estado, cod_centro
+            FROM usuario
+            WHERE cod_centro = :cod_centro
+        """)
+        result = db.execute(query, {"cod_centro": cod_centro}).mappings().all()
+        return result
+    except SQLAlchemyError as e:
+        logger.error(f"Error al obtener usuarios por cod_centro: {e}")
+        raise Exception("Error de base de datos al obtener los usuarios")
+
+
+
+
+## Ejercicio
+
+## Crear la siguiente tabla en Base de datos y realizar las siguientes 
+## funcionalidades en fastapi todas aseguradas con token.
+
+# crear ambiente_formacion (solo superadmin y admin)
+# modificar ambiente_formacion (solo superadmin y admin)
+# obtener por id ambiente_formacion
+# obtener los ambientes activos por centro de formación
+# modificar el estado de un ambiente de formación (solo superadmin y admin)
+
+CREATE TABLE ambiente_formacion(
+    id_ambiente INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    nombre_ambiente VARCHAR(40),
+    num_max_aprendices TINYINT UNSIGNED,
+    municipio VARCHAR(40),
+    ubicacion VARCHAR(80),
+    cod_centro INT UNSIGNED,
+    estado BOOLEAN, -- True Activo   False Inactivo
+    FOREIGN KEY(cod_centro) REFERENCES centro_formacion(cod_centro)
+);
+
