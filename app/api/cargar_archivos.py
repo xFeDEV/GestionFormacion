@@ -74,6 +74,9 @@ async def upload_excel(
     df["fecha_inicio"] = pd.to_datetime(df["fecha_inicio"], errors="coerce").dt.date
     df["fecha_fin"] = pd.to_datetime(df["fecha_fin"], errors="coerce").dt.date
 
+    # Reemplazar valores NaN por None para compatibilidad con MySQL
+    df = df.where(pd.notnull(df), None)
+
     # # Asegurar columnas no proporcionadas
     df["hora_inicio"] = "00:00:00"
     df["hora_fin"] = "00:00:00"
