@@ -40,12 +40,12 @@ def insertar_datos_en_bd(db: Session, df_programas, df):
             cod_ficha, cod_centro, cod_programa, la_version, estado_grupo,
             nombre_nivel, jornada, fecha_inicio, fecha_fin, etapa,
             modalidad, responsable, nombre_empresa, nombre_municipio,
-            nombre_programa_especial, hora_inicio, hora_fin, aula_actual
+            nombre_programa_especial, hora_inicio, hora_fin
         ) VALUES (
             :cod_ficha, :cod_centro, :cod_programa, :la_version, :estado_grupo,
             :nombre_nivel, :jornada, :fecha_inicio, :fecha_fin, :etapa,
             :modalidad, :responsable, :nombre_empresa, :nombre_municipio,
-            :nombre_programa_especial, :hora_inicio, :hora_fin, :aula_actual
+            :nombre_programa_especial, :hora_inicio, :hora_fin
         )
         ON DUPLICATE KEY UPDATE
             estado_grupo=VALUES(estado_grupo),
@@ -53,8 +53,7 @@ def insertar_datos_en_bd(db: Session, df_programas, df):
             responsable=VALUES(responsable),
             nombre_programa_especial=VALUES(nombre_programa_especial),
             hora_inicio=VALUES(hora_inicio),
-            hora_fin=VALUES(hora_fin),
-            aula_actual=VALUES(aula_actual)
+            hora_fin=VALUES(hora_fin)
     """)
 
     for idx, row in df.iterrows():
