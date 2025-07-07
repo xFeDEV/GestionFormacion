@@ -1,4 +1,3 @@
-
 from fastapi import APIRouter, UploadFile, File, Depends
 from sqlalchemy.orm import Session
 from io import BytesIO
@@ -78,7 +77,6 @@ async def upload_excel(
     # # Asegurar columnas no proporcionadas
     df["hora_inicio"] = "00:00:00"
     df["hora_fin"] = "00:00:00"
-    df["aula_actual"] = ""
 
     # Crear DataFrame de programas únicos
     df_programas = df[["cod_programa", "la_version", "nombre"]].drop_duplicates()
