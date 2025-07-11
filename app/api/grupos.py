@@ -1,3 +1,4 @@
+from ast import List
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from app.schemas.grupos import GrupoUpdate, GrupoOut
@@ -5,6 +6,7 @@ from app.crud import grupos as crud_grupo
 from core.database import get_db
 from app.api.dependencies import get_current_user
 from app.schemas.users import UserOut
+from typing import List
 
 router = APIRouter()
 
@@ -28,6 +30,21 @@ def get_grupo(
         if isinstance(e, HTTPException):
             raise e
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/centro/{cod_centro}", response_model=List[GrupoOut])
+def get_grupos_by_centro(
+    cod_centro: int,
+    db: Session = Depends(get_db),
+    current_user: UserOut = Depends(get_current_user)
+):
+    """
+    Obtiene una lista de todos los grupos que pertenecen a un centro de formación.
+    """
+    grupos_db = crud_grupo.get_grupos_by_cod_centro(db, cod_centro=cod_centro)
+    # Si no se encuentran grupos, devuelve una lista vacía, lo cual es correcto.
+    return grupos_db
+
 
 @router.put("/{cod_ficha}")
 def update_grupo(

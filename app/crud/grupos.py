@@ -1,7 +1,8 @@
+from ast import List
 from sqlalchemy.orm import Session
 from sqlalchemy import text
 from app.schemas.grupos import GrupoUpdate
-from typing import Optional
+from typing import Optional, List
 import logging
 
 logger = logging.getLogger(__name__)
@@ -17,6 +18,20 @@ def get_grupo_by_cod_ficha(db: Session, cod_ficha: int) -> Optional[dict]:
     except Exception as e:
         logger.error(f"Error al obtener el grupo {cod_ficha}: {e}")
         raise Exception("Error de base de datos al obtener el grupo")
+    
+
+def get_grupos_by_cod_centro(db: Session, cod_centro: int) -> List[dict]:
+    """
+    Obtiene todos los grupos que pertenecen a un centro de formación específico.
+    """
+    try:
+        query = text("SELECT * FROM grupo WHERE cod_centro = :cod_centro")
+        result = db.execute(query, {"cod_centro": cod_centro}).mappings().all()
+        return result
+    except Exception as e:
+        logger.error(f"Error al obtener los grupos por el centro {cod_centro}: {e}")
+        raise Exception("Error de base de datos al obtener el grupo por centro")   
+
 
 def update_grupo(db: Session, cod_ficha: int, grupo: GrupoUpdate) -> bool:
     try:
