@@ -52,7 +52,7 @@ def get_ambientes_activos_by_centro(db: Session, cod_centro: int):
     try:
         query = text("""
             SELECT * FROM ambiente_formacion
-            WHERE cod_centro = :cod_centro AND estado = TRUE
+            WHERE cod_centro = :cod_centro
         """)
         result = db.execute(query, {"cod_centro": cod_centro}).mappings().all()
         return result
