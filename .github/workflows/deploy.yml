@@ -1,0 +1,41 @@
+name: Deploy to Azure VM
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Deploy to Server
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          script: |
+            # Navega a la carpeta del proyecto
+            cd ${{ secrets.PROJECT_PATH }}
+            
+            # Trae los últimos cambios del repositorio
+            echo "🚚 Pulling latest changes..."
+            git pull origin main
+            
+            # Instala o actualiza dependencias (¡muy importante!)
+            echo "🐍 Installing dependencies..."
+            source venv/bin/activate
+            pip install -r requirements.txt
+            
+            # Reinicia el servicio de FastAPI
+            echo "🔄 Restarting FastAPI service..."
+            sudo systemctl restart fastapi.service
+            
+            # Verifica el estado del servicio después de reiniciar
+            echo "✅ Deployment finished. Checking service status..."
+            sudo systemctl status fastapi.service 
