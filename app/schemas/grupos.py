@@ -2,6 +2,26 @@ from pydantic import BaseModel, Field, field_validator
 from typing import Optional
 from datetime import date, time, timedelta
 
+# --- Schema para DatosGrupo ---
+class DatosGrupoCreate(BaseModel):
+    cod_ficha: Optional[int] = None
+    num_aprendices_masculinos: Optional[int] = None
+    num_aprendices_femenino: Optional[int] = None
+    num_aprendices_no_binario: Optional[int] = None
+    num_total_aprendices: Optional[int] = None
+    num_total_aprendices_activos: Optional[int] = None
+
+# --- Schema para CentroFormacion ---
+class CentroFormacionCreate(BaseModel):
+    cod_centro: int
+    nombre_centro: str
+    cod_regional: int
+
+# --- Schema para Regional ---
+class RegionalCreate(BaseModel):
+    cod_regional: int
+    nombre: str
+
 # --- Schema para actualizar (el cuerpo del PUT) ---
 class GrupoUpdate(BaseModel):
     hora_inicio: Optional[time] = None
