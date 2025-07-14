@@ -10,6 +10,21 @@ class DatosGrupoCreate(BaseModel):
     num_aprendices_no_binario: Optional[int] = None
     num_total_aprendices: Optional[int] = None
     num_total_aprendices_activos: Optional[int] = None
+    # Campos adicionales del archivo DF-14
+    cupo_total: Optional[int] = None
+    en_transito: Optional[int] = None
+    induccion: Optional[int] = None
+    formacion: Optional[int] = None
+    condicionado: Optional[int] = None
+    aplazado: Optional[int] = None
+    retiro_voluntario: Optional[int] = None
+    cancelado: Optional[int] = None
+    cancelamiento_vit_comp: Optional[int] = None
+    desercion_vit_comp: Optional[int] = None
+    por_certificar: Optional[int] = None
+    certificados: Optional[int] = None
+    traslados: Optional[int] = None
+    otro: Optional[int] = None
 
 # --- Schema para CentroFormacion ---
 class CentroFormacionCreate(BaseModel):

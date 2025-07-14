@@ -266,3 +266,100 @@ def insertar_datos_en_bd(db: Session, df_programas, df):
         "errores": errores,
         "mensaje": "Carga completada con errores" if errores else "Carga completada exitosamente"
     }
+
+def update_programas_duracion_bulk(db: Session, df_programas: pd.DataFrame):
+    """
+    Actualiza las duraciones de los programas de formación con datos del archivo DF-14.
+    """
+    programas_actualizados = 0
+    errores = []
+
+    update_programa_sql = text("""
+        UPDATE programa_formacion 
+        SET horas_lectivas = :horas_lectivas, 
+            horas_productivas = :horas_productivas 
+        WHERE cod_programa = :cod_programa AND la_version = :la_version
+    """)
+
+    for idx, row in df_programas.iterrows():
+        try:
+            # Filtrar solo los campos necesarios
+            data_dict = {
+                'cod_programa': row['cod_programa'],
+                'la_version': row['la_version'],
+                'horas_lectivas': row.get('horas_lectivas', 0),
+                'horas_productivas': row.get('horas_productivas', 0)
+            }
+            
+            db.execute(update_programa_sql, data_dict)
+            programas_actualizados += 1
+        except SQLAlchemyError as e:
+            msg = f"Error al actualizar programa {row['cod_programa']}-{row['la_version']} (índice {idx}): {e}"
+            errores.append(msg)
+            logger.error(f"Error al actualizar programa: {e}")
+
+    db.commit()
+    return {
+        "programas_actualizados": programas_actualizados,
+        "errores": errores
+    }
+
+def update_datos_grupo_bulk(db: Session, df_datos_grupo: pd.DataFrame):
+    """
+    Actualiza los datos de grupo con información del archivo DF-14.
+    """
+    datos_actualizados = 0
+    errores = []
+
+    update_datos_sql = text("""
+        UPDATE datos_grupo 
+        SET cupo_total = :cupo_total,
+            en_transito = :en_transito,
+            induccion = :induccion,
+            formacion = :formacion,
+            condicionado = :condicionado,
+            aplazado = :aplazado,
+            retiro_voluntario = :retiro_voluntario,
+            cancelado = :cancelado,
+            cancelamiento_vit_comp = :cancelamiento_vit_comp,
+            desercion_vit_comp = :desercion_vit_comp,
+            por_certificar = :por_certificar,
+            certificados = :certificados,
+            traslados = :traslados,
+            otro = :otro
+        WHERE cod_ficha = :cod_ficha
+    """)
+
+    for idx, row in df_datos_grupo.iterrows():
+        try:
+            # Preparar los datos para la actualización
+            data_dict = {
+                'cod_ficha': row['cod_ficha'],
+                'cupo_total': row.get('cupo_total'),
+                'en_transito': row.get('en_transito'),
+                'induccion': row.get('induccion'),
+                'formacion': row.get('formacion'),
+                'condicionado': row.get('condicionado'),
+                'aplazado': row.get('aplazado'),
+                'retiro_voluntario': row.get('retiro_voluntario'),
+                'cancelado': row.get('cancelado'),
+                'cancelamiento_vit_comp': row.get('cancelamiento_vit_comp'),
+                'desercion_vit_comp': row.get('desercion_vit_comp'),
+                'por_certificar': row.get('por_certificar'),
+                'certificados': row.get('certificados'),
+                'traslados': row.get('traslados'),
+                'otro': row.get('otro')
+            }
+            
+            db.execute(update_datos_sql, data_dict)
+            datos_actualizados += 1
+        except SQLAlchemyError as e:
+            msg = f"Error al actualizar datos del grupo {row['cod_ficha']} (índice {idx}): {e}"
+            errores.append(msg)
+            logger.error(f"Error al actualizar datos de grupo: {e}")
+
+    db.commit()
+    return {
+        "datos_actualizados": datos_actualizados,
+        "errores": errores
+    }

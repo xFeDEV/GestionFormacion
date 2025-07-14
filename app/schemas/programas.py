@@ -8,6 +8,13 @@ class ProgramaBase(BaseModel):
     horas_lectivas: int
     horas_productivas: int
 
+class ProgramaFormacionCreate(BaseModel):
+    cod_programa: int
+    la_version: int
+    nombre: str = Field(max_length=130)
+    horas_lectivas: Optional[int] = None
+    horas_productivas: Optional[int] = None
+
 class ProgramaCreate(ProgramaBase):
     pass
 
