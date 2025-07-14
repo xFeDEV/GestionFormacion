@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
-from app.schemas.grupo_instructor import GrupoInstructorCreate, GrupoInstructorOut
+from app.schemas.grupo_instructor import GrupoInstructorCreate, GrupoInstructorOut, GrupoInstructorUpdate
 from app.crud import grupo_instructor as crud_grupo_instructor
 from core.database import get_db
 from app.api.dependencies import get_current_user
@@ -43,6 +43,28 @@ def get_grupos_of_instructor(
 ):
     grupos = crud_grupo_instructor.get_grupos_by_instructor(db, id_instructor)
     return grupos
+
+@router.put("/{cod_ficha_actual}/{id_instructor_actual}", response_model=GrupoInstructorOut)
+def update_instructor_of_grupo(
+    cod_ficha_actual: int,
+    id_instructor_actual: int,
+    grupo_instructor_update: GrupoInstructorUpdate,
+    db: Session = Depends(get_db),
+    current_user: UserOut = Depends(get_current_user)
+):
+    only_admins(current_user)
+    try:
+        updated = crud_grupo_instructor.update_grupo_instructor(
+            db,
+            cod_ficha_actual,
+            id_instructor_actual,
+            grupo_instructor_update
+        )
+        if not updated:
+            raise HTTPException(status_code=404, detail="Asignación no encontrada")
+        return updated
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 @router.delete("/{cod_ficha}/{id_instructor}", status_code=status.HTTP_204_NO_CONTENT)
 def unassign_instructor_from_grupo(

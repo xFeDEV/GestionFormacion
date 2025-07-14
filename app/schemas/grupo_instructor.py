@@ -8,6 +8,10 @@ class GrupoInstructorBase(BaseModel):
 class GrupoInstructorCreate(GrupoInstructorBase):
     pass
 
+class GrupoInstructorUpdate(BaseModel):
+    cod_ficha: int
+    id_instructor: int
+
 class GrupoInstructorOut(GrupoInstructorBase):
     class Config:
         from_attributes = True

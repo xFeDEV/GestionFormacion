@@ -1,7 +1,7 @@
 from sqlalchemy.orm import Session
 from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
-from app.schemas.grupo_instructor import GrupoInstructorCreate
+from app.schemas.grupo_instructor import GrupoInstructorCreate, GrupoInstructorUpdate
 import logging
 
 logger = logging.getLogger(__name__)
@@ -18,6 +18,30 @@ def create_grupo_instructor(db: Session, grupo_instructor: GrupoInstructorCreate
     except SQLAlchemyError as e:
         db.rollback()
         logger.error(f"Error al asignar instructor a grupo: {e}")
+        raise
+
+def update_grupo_instructor(db: Session, cod_ficha_actual: int, id_instructor_actual: int, grupo_instructor_update: GrupoInstructorUpdate):
+    try:
+        query = text("""
+            UPDATE grupo_instructor
+            SET cod_ficha = :cod_ficha, id_instructor = :id_instructor
+            WHERE cod_ficha = :cod_ficha_actual AND id_instructor = :id_instructor_actual
+        """)
+        db.execute(query, {
+            "cod_ficha": grupo_instructor_update.cod_ficha,
+            "id_instructor": grupo_instructor_update.id_instructor,
+            "cod_ficha_actual": cod_ficha_actual,
+            "id_instructor_actual": id_instructor_actual
+        })
+        db.commit()
+        # Devolver el registro actualizado
+        return {
+            "cod_ficha": grupo_instructor_update.cod_ficha,
+            "id_instructor": grupo_instructor_update.id_instructor
+        }
+    except SQLAlchemyError as e:
+        db.rollback()
+        logger.error(f"Error al actualizar instructor de grupo: {e}")
         raise
 
 def get_instructores_by_grupo(db: Session, cod_ficha: int):
