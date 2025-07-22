@@ -3,6 +3,7 @@ from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 import logging
 import pandas as pd
+from app.schemas.centro_formacion import CentroFormacionCreate, CentroFormacionOut
 from app.schemas import grupos as schemas
 
 logger = logging.getLogger(__name__)
@@ -25,7 +26,7 @@ def upsert_regional(db: Session, regional: schemas.RegionalCreate):
         logger.error(f"Error al hacer upsert de regional: {e}")
         raise Exception("Error de base de datos al procesar regional")
 
-def upsert_centro_formacion(db: Session, centro: schemas.CentroFormacionCreate):
+def upsert_centro_formacion(db: Session, centro: CentroFormacionCreate):
     """
     Inserta o actualiza un centro de formación en la base de datos.
     """

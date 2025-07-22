@@ -8,7 +8,8 @@ from app.crud.cargar_archivos import (
     upsert_grupos_bulk,
     upsert_datos_grupo_bulk
 )
-from app.schemas.grupos import RegionalCreate, CentroFormacionCreate
+from app.schemas.grupos import RegionalCreate
+from app.schemas.centro_formacion import CentroFormacionCreate
 from core.database import get_db
 import pandas as pd
 import numpy as np
