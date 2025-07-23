@@ -343,3 +343,346 @@ async def upload_df14_excel(
         resultados["errores"].append(f"Error general procesando DF-14: {str(e)}")
         resultados["mensaje"] = "Error crítico procesando archivo DF-14"
         return resultados
+
+@router.post("/upload-evaluaciones-excel/", tags=["Cargar Archivos"])
+async def upload_evaluaciones_excel(
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db)
+):
+    """
+    Endpoint para procesar el archivo de evaluaciones que contiene:
+    - Tabla 1: Ficha de caracterización (A2-A12)
+    - Tabla 2: Datos de evaluaciones con competencias y resultados de aprendizaje
+    """
+    from app.crud.cargar_archivos import upsert_competencia_bulk, upsert_resultado_aprendizaje_bulk, upsert_programa_competencia_bulk
+    
+    contents = await file.read()
+    
+    try:
+        # Leer la primera tabla (A2-A12) para obtener la ficha de caracterización
+        # La ficha está específicamente en la celda C3
+        df_ficha = pd.read_excel(
+            BytesIO(contents),
+            engine="openpyxl",
+            usecols="A:C",  # Columnas A, B y C
+            skiprows=1,     # Saltar las primeras 2 filas para llegar a la fila 3
+            nrows=1         # Leer solo 1 fila (fila 3)
+        )
+        
+        # Extraer la ficha de caracterización de la celda C3
+        ficha_caracterizacion = None
+        if len(df_ficha.columns) >= 3 and len(df_ficha) > 0:
+            ficha_value = df_ficha.iloc[0, 2]  # Tercera columna (C), primera fila
+            if pd.notna(ficha_value):
+                ficha_caracterizacion = str(ficha_value).strip()
+                # Limpiar y convertir a número si es posible
+                try:
+                    # Remover espacios y caracteres no numéricos excepto puntos y comas
+                    cleaned_value = ''.join(c for c in ficha_caracterizacion if c.isdigit() or c in '.,')
+                    if cleaned_value:
+                        ficha_caracterizacion = str(int(float(cleaned_value.replace(',', ''))))
+                except Exception as convert_error:
+                    print(f"No se pudo convertir la ficha a número: {convert_error}")
+                    # Mantener el valor original como string
+                    pass
+        
+        print(f"Ficha de caracterización encontrada en C3: {ficha_caracterizacion}")
+        
+        # Leer la segunda tabla con los datos de evaluaciones
+        # Buscar donde comienza la tabla de evaluaciones (después de A12)
+        df_evaluaciones = pd.read_excel(
+            BytesIO(contents),
+            engine="openpyxl",
+            skiprows=13  # Comenzar después de A12, ajustar según sea necesario
+        )
+        
+        # Renombrar columnas para facilitar el procesamiento
+        expected_columns = [
+            "tipo_documento", "numero_documento", "nombre", "apellidos", "estado",
+            "competencia", "resultado_aprendizaje", "juicio_evaluacion", 
+            "fecha_hora_juicio", "funcionario_registro"
+        ]
+        
+        # Asignar nombres a las columnas si coinciden en número
+        if len(df_evaluaciones.columns) >= len(expected_columns):
+            df_evaluaciones.columns = expected_columns + list(df_evaluaciones.columns[len(expected_columns):])
+        
+        print(f"Columnas de evaluaciones: {df_evaluaciones.columns.tolist()}")
+        print(f"Filas de evaluaciones cargadas: {len(df_evaluaciones)}")
+        
+        # Agregar la ficha de caracterización como nueva columna
+        df_evaluaciones["cod_ficha"] = ficha_caracterizacion
+        
+        # Limpiar datos
+        df_evaluaciones = df_evaluaciones.where(pd.notnull(df_evaluaciones), None)
+        df_evaluaciones = df_evaluaciones.dropna(subset=["competencia", "resultado_aprendizaje"])
+        
+        print(f"Filas después de limpieza: {len(df_evaluaciones)}")
+        
+        # Función para extraer código y nombre de una cadena
+        def extraer_codigo_nombre(texto):
+            if pd.isna(texto) or not isinstance(texto, str):
+                return None, None
+            
+            # Buscar patrón: número al inicio seguido de " - "
+            import re
+            match = re.match(r'^(\d+)\s*-\s*(.+)$', texto.strip())
+            if match:
+                codigo = int(match.group(1))
+                nombre = match.group(2).strip()
+                return codigo, nombre
+            return None, texto.strip()
+        
+        # Procesar competencias
+        competencias_data = []
+        competencias_vistas = set()
+        
+        for _, row in df_evaluaciones.iterrows():
+            if pd.notna(row["competencia"]):
+                cod_competencia, nombre_competencia = extraer_codigo_nombre(row["competencia"])
+                
+                if cod_competencia and cod_competencia not in competencias_vistas:
+                    # Extraer horas de la fecha_hora_juicio (si está disponible)
+                    horas = 0
+                    if pd.notna(row["fecha_hora_juicio"]):
+                        # Intentar extraer horas del campo si es un string con formato específico
+                        try:
+                            if isinstance(row["fecha_hora_juicio"], str):
+                                # Si hay un patrón específico para las horas, ajustar aquí
+                                horas = 0  # Por defecto
+                        except:
+                            horas = 0
+                    
+                    competencias_data.append({
+                        "cod_competencia": int(cod_competencia),
+                        "nombre": str(nombre_competencia) if nombre_competencia else "",
+                        "horas": int(horas) if pd.notna(horas) and horas is not None else 0
+                    })
+                    competencias_vistas.add(cod_competencia)
+        
+        # Procesar resultados de aprendizaje
+        resultados_data = []
+        resultados_vistos = set()
+        
+        for _, row in df_evaluaciones.iterrows():
+            if pd.notna(row["resultado_aprendizaje"]) and pd.notna(row["competencia"]):
+                cod_resultado, nombre_resultado = extraer_codigo_nombre(row["resultado_aprendizaje"])
+                cod_competencia, _ = extraer_codigo_nombre(row["competencia"])
+                
+                if cod_resultado and cod_competencia and cod_resultado not in resultados_vistos:
+                    resultados_data.append({
+                        "cod_resultado": int(cod_resultado),
+                        "nombre": str(nombre_resultado) if nombre_resultado else "",
+                        "cod_competencia": int(cod_competencia)
+                    })
+                    resultados_vistos.add(cod_resultado)
+        
+        # Convertir a DataFrames
+        df_competencias = pd.DataFrame(competencias_data)
+        df_resultados = pd.DataFrame(resultados_data)
+        
+        print(f"Competencias extraídas: {len(df_competencias)}")
+        print(f"Resultados de aprendizaje extraídos: {len(df_resultados)}")
+        
+        # Obtener cod_programa de la ficha de caracterización
+        cod_programa = None
+        debug_cod_programa = {}
+        
+        if ficha_caracterizacion:
+            try:
+                # Buscar directamente el cod_programa en la tabla grupos donde cod_programa = ficha
+                from sqlalchemy import text
+                
+                query_programa = text("""
+                    SELECT cod_programa 
+                    FROM grupo 
+                    WHERE cod_programa = :ficha_code 
+                    LIMIT 1
+                """)
+                result = db.execute(query_programa, {"ficha_code": ficha_caracterizacion}).fetchone()
+                
+                if result:
+                    cod_programa = result[0]
+                    debug_cod_programa = {
+                        "ficha_buscada": ficha_caracterizacion,
+                        "cod_programa_encontrado": cod_programa,
+                        "query_ejecutada": "SELECT cod_programa FROM grupo WHERE cod_programa = ficha",
+                        "tipo_busqueda": "string"
+                    }
+                    print(f"Código de programa encontrado (como string): {cod_programa}")
+                else:
+                    # Intentar buscar con conversión a entero
+                    try:
+                        ficha_as_int = int(ficha_caracterizacion)
+                        result_int = db.execute(query_programa, {"ficha_code": ficha_as_int}).fetchone()
+                        if result_int:
+                            cod_programa = result_int[0]
+                            debug_cod_programa = {
+                                "ficha_buscada": ficha_caracterizacion,
+                                "ficha_como_int": ficha_as_int,
+                                "cod_programa_encontrado": cod_programa,
+                                "query_ejecutada": "SELECT cod_programa FROM grupo WHERE cod_programa = ficha",
+                                "tipo_busqueda": "int"
+                            }
+                            print(f"Código de programa encontrado (como int): {cod_programa}")
+                        else:
+                            debug_cod_programa = {
+                                "ficha_buscada": ficha_caracterizacion,
+                                "ficha_como_int": ficha_as_int,
+                                "cod_programa_encontrado": None,
+                                "query_ejecutada": "SELECT cod_programa FROM grupo WHERE cod_programa = ficha",
+                                "tipo_busqueda": "ambos_fallaron"
+                            }
+                            print(f"No se encontró código de programa para la ficha: {ficha_caracterizacion}")
+                    except ValueError as ve:
+                        debug_cod_programa = {
+                            "ficha_buscada": ficha_caracterizacion,
+                            "error_conversion": str(ve),
+                            "query_ejecutada": "SELECT cod_programa FROM grupo WHERE cod_programa = ficha",
+                            "tipo_busqueda": "solo_string_fallido"
+                        }
+                        print(f"Error convirtiendo ficha a int: {ve}")
+                        print(f"No se encontró código de programa para la ficha (como string): {ficha_caracterizacion}")
+                
+                # Si aún no encontramos nada, hacer más debugging
+                if not cod_programa:
+                    print("DEBUGGING: Buscando información adicional...")
+                    
+                    # Verificar si la ficha existe en grupo
+                    check_grupos_query = text("""
+                        SELECT cod_ficha, cod_programa FROM grupo WHERE cod_ficha = :ficha_code
+                    """)
+                    grupos_result = db.execute(check_grupos_query, {"ficha_code": ficha_caracterizacion}).fetchone()
+                    if grupos_result:
+                        print(f"Ficha encontrada en grupo: cod_ficha={grupos_result[0]}, cod_programa={grupos_result[1]}")
+                        
+                        # Verificar si el programa existe en programa_formacion
+                        check_programa_query = text("""
+                            SELECT cod_programa FROM programa_formacion WHERE cod_programa = :cod_programa
+                        """)
+                        programa_result = db.execute(check_programa_query, {"cod_programa": grupos_result[1]}).fetchone()
+                        if programa_result:
+                            print(f"Programa encontrado en programa_formacion: {programa_result[0]}")
+                            cod_programa = programa_result[0]
+                        else:
+                            print(f"PROBLEMA: Programa {grupos_result[1]} NO existe en tabla programa_formacion")
+                    else:
+                        print(f"Ficha {ficha_caracterizacion} NO encontrada en tabla grupo")
+                    
+                    # Buscar fichas similares
+                    search_query = text("""
+                        SELECT g.cod_ficha, g.cod_programa FROM grupo g 
+                        WHERE g.cod_ficha LIKE :pattern 
+                        ORDER BY g.cod_ficha LIMIT 10
+                    """)
+                    similar_results = db.execute(search_query, {"pattern": f"%{ficha_caracterizacion[-4:]}%"}).fetchall()
+                    print(f"Fichas similares encontradas: {[(r[0], r[1]) for r in similar_results]}")
+                    
+                    # Contar total de grupos
+                    count_query = text("SELECT COUNT(*) FROM grupo WHERE cod_ficha IS NOT NULL")
+                    count_result = db.execute(count_query).fetchone()
+                    print(f"Total de grupos con cod_ficha en la base de datos: {count_result[0] if count_result else 0}")
+                    
+                    # Mostrar ejemplos de fichas
+                    sample_query = text("SELECT cod_ficha, cod_programa FROM grupo WHERE cod_ficha IS NOT NULL LIMIT 10")
+                    sample_results = db.execute(sample_query).fetchall()
+                    print(f"Ejemplos de fichas en la base de datos: {[(r[0], r[1]) for r in sample_results]}")
+                    
+            except Exception as e:
+                debug_cod_programa = {
+                    "ficha_buscada": ficha_caracterizacion,
+                    "error_excepcion": str(e),
+                    "query_ejecutada": "SELECT cod_programa FROM grupo WHERE cod_programa = ficha",
+                    "tipo_busqueda": "error_excepcion"
+                }
+                print(f"Error al buscar código de programa: {e}")
+                import traceback
+                print(f"Traceback completo: {traceback.format_exc()}")
+        else:
+            debug_cod_programa = {
+                "ficha_buscada": None,
+                "error": "No se pudo obtener ficha_caracterizacion",
+                "query_ejecutada": "ninguna",
+                "tipo_busqueda": "sin_ficha"
+            }
+            print("No se pudo obtener ficha_caracterizacion para buscar cod_programa")
+        
+        # Crear relaciones programa-competencia
+        programa_competencia_data = []
+        if cod_programa and len(df_competencias) > 0:
+            print(f"Creando relaciones programa-competencia para programa {cod_programa} con {len(df_competencias)} competencias")
+            for idx, row in df_competencias.iterrows():
+                programa_competencia_data.append({
+                    # No incluir cod_prog_competencia ya que es AUTO_INCREMENT
+                    "cod_competencia": row['cod_competencia'],
+                    "cod_programa": cod_programa
+                })
+        else:
+            if not cod_programa:
+                print("No se puede crear relaciones programa-competencia: cod_programa no encontrado")
+            if len(df_competencias) == 0:
+                print("No se puede crear relaciones programa-competencia: no hay competencias extraídas")
+        
+        df_programa_competencia = pd.DataFrame(programa_competencia_data)
+        print(f"Relaciones programa-competencia creadas: {len(df_programa_competencia)}")
+        
+        # Resultados de procesamiento
+        resultados = {
+            "ficha_caracterizacion": ficha_caracterizacion,
+            "competencias_procesadas": 0,
+            "resultados_procesados": 0,
+            "programa_competencia_procesadas": 0,
+            "registros_evaluaciones": int(len(df_evaluaciones)),
+            "errores": [],
+            # Campos de debug temporales
+            "debug_cod_programa_info": debug_cod_programa,
+            "debug_competencias_count": len(df_competencias),
+            "debug_programa_competencia_data_count": len(df_programa_competencia)
+        }
+        
+        # Guardar competencias en la base de datos
+        if len(df_competencias) > 0:
+            competencias_result = upsert_competencia_bulk(db, df_competencias)
+            resultados["competencias_procesadas"] = int(competencias_result.get("competencias_insertadas", 0))
+            resultados["errores"].extend(competencias_result.get("errores", []))
+        
+        # Guardar resultados de aprendizaje en la base de datos
+        if len(df_resultados) > 0:
+            resultados_result = upsert_resultado_aprendizaje_bulk(db, df_resultados)
+            resultados["resultados_procesados"] = int(resultados_result.get("resultados_insertados", 0))
+            resultados["errores"].extend(resultados_result.get("errores", []))
+        
+        # Guardar relaciones programa-competencia en la base de datos
+        if len(df_programa_competencia) > 0:
+            try:
+                programa_comp_result = upsert_programa_competencia_bulk(db, df_programa_competencia)
+                resultados["programa_competencia_procesadas"] = int(programa_comp_result.get("relaciones_insertadas", 0))
+                resultados["errores"].extend(programa_comp_result.get("errores", []))
+                resultados["debug_programa_comp_result"] = programa_comp_result
+            except Exception as e:
+                error_msg = f"Error al procesar programa_competencia: {str(e)}"
+                resultados["errores"].append(error_msg)
+                resultados["debug_programa_comp_error"] = error_msg
+        else:
+            resultados["debug_programa_comp_message"] = "No hay relaciones programa-competencia para procesar"
+        
+        # Mensaje final
+        resultados["mensaje"] = "Archivo de evaluaciones procesado correctamente"
+        if resultados["errores"]:
+            resultados["mensaje"] += " (con algunos errores)"
+        
+        return resultados
+        
+    except Exception as e:
+        return {
+            "mensaje": "Error crítico procesando archivo de evaluaciones",
+            "errores": [f"Error general: {str(e)}"],
+            "ficha_caracterizacion": None,
+            "competencias_procesadas": 0,
+            "resultados_procesados": 0,
+            "programa_competencia_procesadas": 0,
+            "registros_evaluaciones": 0,
+            "debug_cod_programa_info": {},
+            "debug_competencias_count": 0,
+            "debug_programa_competencia_data_count": 0
+        }

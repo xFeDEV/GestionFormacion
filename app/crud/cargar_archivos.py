@@ -364,3 +364,126 @@ def update_datos_grupo_bulk(db: Session, df_datos_grupo: pd.DataFrame):
         "datos_actualizados": datos_actualizados,
         "errores": errores
     }
+
+def upsert_competencia_bulk(db: Session, df_competencias: pd.DataFrame):
+    """
+    Inserta o actualiza competencias en la base de datos en lote.
+    """
+    competencias_insertadas = 0
+    errores = []
+    
+    upsert_sql = text("""
+        INSERT INTO competencia (cod_competencia, nombre, horas)
+        VALUES (:cod_competencia, :nombre, :horas)
+        ON DUPLICATE KEY UPDATE 
+            nombre = VALUES(nombre),
+            horas = VALUES(horas)
+    """)
+    
+    for idx, row in df_competencias.iterrows():
+        try:
+            data_dict = {
+                'cod_competencia': row.get('cod_competencia'),
+                'nombre': row.get('nombre', '')[:500],  # Limitar longitud
+                'horas': row.get('horas', 0)
+            }
+            
+            db.execute(upsert_sql, data_dict)
+            competencias_insertadas += 1
+        except SQLAlchemyError as e:
+            msg = f"Error al insertar competencia {row['cod_competencia']} (índice {idx}): {e}"
+            errores.append(msg)
+            logger.error(f"Error al insertar competencia: {e}")
+
+    db.commit()
+    return {
+        "competencias_insertadas": competencias_insertadas,
+        "errores": errores
+    }
+
+def upsert_resultado_aprendizaje_bulk(db: Session, df_resultados: pd.DataFrame):
+    """
+    Inserta o actualiza resultados de aprendizaje en la base de datos en lote.
+    """
+    resultados_insertados = 0
+    errores = []
+    
+    upsert_sql = text("""
+        INSERT INTO resultado_aprendizaje (cod_resultado, nombre, cod_competencia)
+        VALUES (:cod_resultado, :nombre, :cod_competencia)
+        ON DUPLICATE KEY UPDATE 
+            nombre = VALUES(nombre),
+            cod_competencia = VALUES(cod_competencia)
+    """)
+    
+    for idx, row in df_resultados.iterrows():
+        try:
+            data_dict = {
+                'cod_resultado': row.get('cod_resultado'),
+                'nombre': row.get('nombre', '')[:500],  # Limitar longitud
+                'cod_competencia': row.get('cod_competencia')
+            }
+            
+            db.execute(upsert_sql, data_dict)
+            resultados_insertados += 1
+        except SQLAlchemyError as e:
+            msg = f"Error al insertar resultado de aprendizaje {row['cod_resultado']} (índice {idx}): {e}"
+            errores.append(msg)
+            logger.error(f"Error al insertar resultado de aprendizaje: {e}")
+
+    db.commit()
+    return {
+        "resultados_insertados": resultados_insertados,
+        "errores": errores
+    }
+
+def upsert_programa_competencia_bulk(db: Session, df_programa_competencia: pd.DataFrame):
+    """
+    Inserta o actualiza relaciones programa-competencia en la base de datos en lote.
+    """
+    relaciones_insertadas = 0
+    errores = []
+    
+    print(f"CRUD: Iniciando inserción de {len(df_programa_competencia)} relaciones programa-competencia")
+    
+    # Usar INSERT IGNORE para evitar duplicados, sin especificar cod_prog_competencia (AUTO_INCREMENT)
+    upsert_sql = text("""
+        INSERT IGNORE INTO programa_competencia (cod_programa, cod_competencia)
+        VALUES (:cod_programa, :cod_competencia)
+    """)
+    
+    for idx, row in df_programa_competencia.iterrows():
+        try:
+            data_dict = {
+                'cod_programa': row.get('cod_programa'),
+                'cod_competencia': row.get('cod_competencia')
+            }
+            
+            print(f"CRUD: Insertando relación {idx+1}: programa={data_dict['cod_programa']}, competencia={data_dict['cod_competencia']}")
+            
+            result = db.execute(upsert_sql, data_dict)
+            if result.rowcount > 0:  # Si se insertó una nueva fila
+                relaciones_insertadas += 1
+                print(f"CRUD: Relación insertada exitosamente (rowcount: {result.rowcount})")
+            else:
+                print(f"CRUD: Relación ya existía, no se insertó (rowcount: {result.rowcount})")
+                
+        except SQLAlchemyError as e:
+            msg = f"Error al insertar programa-competencia programa:{row.get('cod_programa')} competencia:{row.get('cod_competencia')} (índice {idx}): {e}"
+            errores.append(msg)
+            logger.error(f"Error al insertar programa-competencia: {e}")
+            print(f"CRUD: ERROR - {msg}")
+
+    try:
+        db.commit()
+        print(f"CRUD: Commit exitoso. Total relaciones insertadas: {relaciones_insertadas}")
+    except Exception as e:
+        db.rollback()
+        error_msg = f"Error en commit: {e}"
+        errores.append(error_msg)
+        print(f"CRUD: ERROR en commit - {error_msg}")
+    
+    return {
+        "relaciones_insertadas": relaciones_insertadas,
+        "errores": errores
+    }
