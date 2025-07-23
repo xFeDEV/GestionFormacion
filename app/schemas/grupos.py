@@ -3,7 +3,7 @@ from typing import Optional
 from datetime import date, time, timedelta
 
 # --- Schema para DatosGrupo ---
-class DatosGrupoCreate(BaseModel):
+class GrupoBase(BaseModel):
     cod_ficha: Optional[int] = None
     num_aprendices_masculinos: Optional[int] = None
     num_aprendices_femenino: Optional[int] = None
@@ -26,16 +26,8 @@ class DatosGrupoCreate(BaseModel):
     traslados: Optional[int] = None
     otro: Optional[int] = None
 
-# --- Schema para CentroFormacion ---
-class CentroFormacionCreate(BaseModel):
-    cod_centro: int
-    nombre_centro: str
-    cod_regional: int
-
-# --- Schema para Regional ---
-class RegionalCreate(BaseModel):
-    cod_regional: int
-    nombre: str
+class GrupoCreate(GrupoBase):
+    pass
 
 # --- Schema para actualizar (el cuerpo del PUT) ---
 class GrupoUpdate(BaseModel):
@@ -79,3 +71,8 @@ class GrupoOut(BaseModel):
     class Config:
         # Permite que Pydantic lea los datos directamente de un objeto de base de datos
         from_attributes = True 
+
+# --- Schema para Regional ---
+class RegionalCreate(BaseModel):
+    cod_regional: int
+    nombre: str

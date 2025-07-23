@@ -1,6 +1,5 @@
-from typing import Generator
 import logging
-
+from typing import Generator
 from sqlalchemy import create_engine, text, MetaData
 from sqlalchemy.orm import sessionmaker, declarative_base
 from sqlalchemy.exc import SQLAlchemyError, OperationalError, DisconnectionError
@@ -19,7 +18,7 @@ engine = create_engine(
     pool_recycle=3600,   # Recicla conexiones después de una hora para evitar el error "connection has been closed"
     pool_size=10,        # Número máximo de conexiones permanentes en el pool
     max_overflow=20,     # Conexiones adicionales permitidas temporalmente cuando el pool está lleno
-    pool_timeout=30,     # Tiempo máximo de espera para obtener una conexión del pool
+    pool_timeout=30,     # Tiempo máximo de espera para obtener una conexión del pool (en segundos)
     poolclass=QueuePool  # Clase de pool para manejo eficiente de conexiones
 )
 

@@ -6,6 +6,8 @@ from app.api import ambiente
 from app.api import cargar_archivos
 from app.api import grupos
 from app.api import programas
+from app.api import grupo_instructor
+from app.api import centro_formacion
 
 
 
@@ -13,12 +15,14 @@ from app.api import programas
 app = FastAPI()
 
 # Incluir en el objeto app los routers
-app.include_router(users.router, prefix="/users", tags=["users"])
-app.include_router(auth.router, prefix="/access", tags=["login"])
-app.include_router(ambiente.router, prefix="/ambientes", tags=["ambientes"])
-app.include_router(cargar_archivos.router, prefix="/files", tags=["cargar_archivos"])
-app.include_router(grupos.router, prefix="/grupos", tags=["grupos"])
+app.include_router(users.router, prefix="/users", tags=["Users"])
+app.include_router(auth.router, prefix="/access", tags=["Login"])
+app.include_router(ambiente.router, prefix="/ambientes", tags=["Ambientes"])
+app.include_router(cargar_archivos.router, prefix="/files", tags=["Cargar Archivos"])
+app.include_router(grupos.router, prefix="/grupos", tags=["Grupos"])
 app.include_router(programas.router, prefix="/programas", tags=["Programas"])
+app.include_router(grupo_instructor.router, prefix="/grupo-instructor", tags=["Grupos Instructor"])
+app.include_router(centro_formacion.router, prefix="/centro-formacion", tags=["Centros Formacion"])
 
 # Configuración de CORS para permitir todas las solicitudes desde cualquier origen
 app.add_middleware(
