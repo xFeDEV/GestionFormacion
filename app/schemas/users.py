@@ -20,7 +20,11 @@ class UserUpdate(BaseModel):
     telefono: Optional[str] = Field(default=None, min_length=7, max_length=15)
     correo: Optional[EmailStr] = Field(default=None, min_length=7, max_length=100)
     # estado: Optional[bool] = None
+from pydantic import BaseModel
 
+class UserChangePassword(BaseModel):
+    current_password: str
+    new_password: str
 class UserOut(UserBase):
     id_usuario: int
     nombre_rol: Optional[str] = None

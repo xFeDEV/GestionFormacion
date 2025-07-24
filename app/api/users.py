@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException, logger, status
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 from core.database import get_db
-from app.schemas.users import UserCreate, UserOut, UserUpdate
+from app.schemas.users import UserCreate, UserOut, UserUpdate, UserChangePassword
 from app.crud import users as crud_users
 from sqlalchemy.exc import SQLAlchemyError
 from app.api.dependencies import get_current_user
@@ -132,5 +132,30 @@ def get_users_by_centro(
             raise HTTPException(status_code=404, detail="No se encontraron usuarios para este centro")
         return users
     except SQLAlchemyError as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.put("/change-password")
+def change_password(
+    password_data: UserChangePassword,
+    db: Session = Depends(get_db),
+    current_user: UserOut = Depends(get_current_user)
+):
+    try:
+        success = crud_users.change_password(
+            db, 
+            current_user.id_usuario, 
+            password_data.current_password, 
+            password_data.new_password
+        )
+        
+        if not success:
+            raise HTTPException(
+                status_code=400, 
+                detail="Contraseña actual incorrecta"
+            )
+        
+        return {"message": "Contraseña cambiada correctamente"}
+    except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 

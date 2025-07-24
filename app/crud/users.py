@@ -4,7 +4,7 @@ from sqlalchemy.exc import SQLAlchemyError
 from typing import Optional
 import logging
 from app.schemas.users import UserCreate, UserUpdate
-from core.security import get_hashed_password
+from core.security import get_hashed_password, verify_password
 
 logger = logging.getLogger(__name__)
 
@@ -112,3 +112,42 @@ def get_users_by_centro(db: Session, cod_centro: int):
     except SQLAlchemyError as e:
         logger.error(f"Error al obtener usuarios por cod_centro: {e}")
         raise Exception("Error de base de datos al obtener los usuarios")
+
+
+def change_password(db: Session, user_id: int, current_password: str, new_password: str) -> bool:
+    try:
+        # Obtener el usuario por su ID junto con su contraseña hasheada
+        query = text("""
+            SELECT id_usuario, pass_hash
+            FROM usuario
+            WHERE id_usuario = :user_id
+        """)
+        result = db.execute(query, {"user_id": user_id}).mappings().first()
+        
+        if not result:
+            return False
+        
+        # Verificar que la contraseña actual sea correcta
+        if not verify_password(current_password, result.pass_hash):
+            return False
+        
+        # Hashear la nueva contraseña
+        new_hashed_password = get_hashed_password(new_password)
+        
+        # Actualizar la contraseña en la base de datos
+        update_query = text("""
+            UPDATE usuario 
+            SET pass_hash = :new_password 
+            WHERE id_usuario = :user_id
+        """)
+        db.execute(update_query, {
+            "new_password": new_hashed_password,
+            "user_id": user_id
+        })
+        db.commit()
+        return True
+        
+    except SQLAlchemyError as e:
+        db.rollback()
+        logger.error(f"Error al cambiar contraseña: {e}")
+        raise Exception("Error de base de datos al cambiar la contraseña")
