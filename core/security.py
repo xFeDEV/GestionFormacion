@@ -22,6 +22,27 @@ def create_access_token(data: dict):
     encoded_jwt = jwt.encode(to_encode, settings.jwt_secret, algorithm=settings.jwt_algorithm)
     return encoded_jwt
 
+# Función para crear un token de recuperación de contraseña con duración personalizada
+def create_reset_password_token(user_id: int, expire_minutes: int = 15):
+    """
+    Crear un token JWT específico para recuperación de contraseña
+    
+    Args:
+        user_id: ID del usuario
+        expire_minutes: Minutos de expiración (default: 15)
+    
+    Returns:
+        str: Token JWT codificado
+    """
+    to_encode = {
+        "sub": str(user_id),
+        "type": "password_reset"
+    }
+    expire = datetime.now(tz=timezone.utc) + timedelta(minutes=expire_minutes)
+    to_encode.update({"exp": expire})
+    encoded_jwt = jwt.encode(to_encode, settings.jwt_secret, algorithm=settings.jwt_algorithm)
+    return encoded_jwt
+
 # Función para verificar si un token JWT es valido
 def verify_token(token: str):
     try:
@@ -33,4 +54,36 @@ def verify_token(token: str):
         return None
     except JWTError as e:
         print("Error al decodificar el token:", str(e))
+        return None
+
+# Función para verificar token de recuperación de contraseña
+def verify_reset_password_token(token: str):
+    """
+    Verificar token de recuperación de contraseña
+    
+    Args:
+        token: Token JWT a verificar
+    
+    Returns:
+        dict: Información del token si es válido, None si no es válido
+    """
+    try:
+        payload = jwt.decode(token, settings.jwt_secret, algorithms=[settings.jwt_algorithm])
+        user_id = payload.get("sub")
+        token_type = payload.get("type")
+        
+        # Verificar que sea un token de recuperación de contraseña
+        if token_type != "password_reset":
+            return None
+            
+        if user_id is not None:
+            return {
+                "user_id": int(user_id),
+                "type": token_type,
+                "exp": payload.get("exp")
+            }
+        return None
+    except jwt.ExpiredSignatureError:
+        return None
+    except JWTError:
         return None

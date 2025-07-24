@@ -4,7 +4,7 @@ from sqlalchemy.exc import SQLAlchemyError
 from typing import Optional
 import logging
 from app.schemas.users import UserCreate, UserUpdate
-from core.security import get_hashed_password, verify_password
+from core.security import get_hashed_password, verify_password, verify_reset_password_token
 
 logger = logging.getLogger(__name__)
 
@@ -151,3 +151,67 @@ def change_password(db: Session, user_id: int, current_password: str, new_passwo
         db.rollback()
         logger.error(f"Error al cambiar contraseña: {e}")
         raise Exception("Error de base de datos al cambiar la contraseña")
+
+
+def reset_password(db: Session, token: str, new_password: str) -> Optional[bool]:
+    """
+    Restablecer contraseña usando un token de recuperación
+    
+    Args:
+        db: Sesión de base de datos
+        token: Token JWT de recuperación de contraseña
+        new_password: Nueva contraseña en texto plano
+    
+    Returns:
+        True si fue exitoso, None si el token es inválido
+    """
+    try:
+        # Decodificar el token para obtener el user_id
+        token_data = verify_reset_password_token(token)
+        
+        if not token_data:
+            logger.warning("Intento de reset con token inválido o expirado")
+            return None
+            
+        user_id = token_data.get("user_id")
+        if not user_id:
+            logger.warning("Token de reset no contiene user_id válido")
+            return None
+        
+        # Verificar que el usuario existe
+        user_query = text("""
+            SELECT id_usuario 
+            FROM usuario 
+            WHERE id_usuario = :user_id
+        """)
+        user_result = db.execute(user_query, {"user_id": user_id}).mappings().first()
+        
+        if not user_result:
+            logger.warning(f"Usuario con ID {user_id} no encontrado para reset de contraseña")
+            return None
+        
+        # Hashear la nueva contraseña
+        new_hashed_password = get_hashed_password(new_password)
+        
+        # Actualizar la contraseña en la base de datos
+        update_query = text("""
+            UPDATE usuario 
+            SET pass_hash = :new_password 
+            WHERE id_usuario = :user_id
+        """)
+        db.execute(update_query, {
+            "new_password": new_hashed_password,
+            "user_id": user_id
+        })
+        db.commit()
+        
+        logger.info(f"Contraseña restablecida exitosamente para usuario ID: {user_id}")
+        return True
+        
+    except SQLAlchemyError as e:
+        db.rollback()
+        logger.error(f"Error al restablecer contraseña: {e}")
+        raise Exception("Error de base de datos al restablecer la contraseña")
+    except Exception as e:
+        logger.error(f"Error inesperado al restablecer contraseña: {e}")
+        return None

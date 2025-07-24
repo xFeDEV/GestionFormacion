@@ -24,6 +24,18 @@ class Settings(BaseSettings):
     jwt_algorithm: str = os.getenv("JWT_ALGORITHM", "HS256")
     jwt_access_token_expire_minutes: int = int(os.getenv("JWT_ACCESS_TOKEN_EXPIRE_MINUTES", "30"))
 
+    # Configuración de correo electrónico
+    mail_username: str = os.getenv("MAIL_USERNAME", "")
+    mail_password: str = os.getenv("MAIL_PASSWORD", "")
+    mail_from: str = os.getenv("MAIL_FROM", "")
+    mail_port: int = int(os.getenv("MAIL_PORT", "587"))
+    mail_server: str = os.getenv("MAIL_SERVER", "smtp.gmail.com")
+    mail_from_name: str = os.getenv("MAIL_FROM_NAME", "Gestión Formación")
+    mail_starttls: bool = os.getenv("MAIL_STARTTLS", "True").lower() == "true"
+    mail_ssl_tls: bool = os.getenv("MAIL_SSL_TLS", "False").lower() == "true"
+    use_credentials: bool = os.getenv("USE_CREDENTIALS", "True").lower() == "true"
+    validate_certs: bool = os.getenv("VALIDATE_CERTS", "True").lower() == "true"
+
     class Config:
         env_file = ".env"
 
