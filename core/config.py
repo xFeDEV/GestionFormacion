@@ -10,6 +10,9 @@ class Settings(BaseSettings):
     PROJECT_VERSION: str = "0.0.1"
     PROJECT_DESCRIPTION: str = "Aplicación para administrar la gestión de la información"
 
+    # Configuración de URLs
+    frontend_url: str = os.getenv("FRONTEND_URL", "http://localhost:3000")
+
     # Configuración de la base de datos
     DB_HOST: str = os.getenv("DB_HOST", "localhost")
     DB_PORT: int = int(os.getenv("DB_PORT", "3306"))

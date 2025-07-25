@@ -8,6 +8,7 @@ from app.crud.users import get_user_by_email, reset_password
 from core.security import create_access_token, create_reset_password_token, verify_reset_password_token
 from core.database import get_db
 from core.email import send_email_async
+from core.config import settings
 from fastapi.security import OAuth2PasswordRequestForm
 import logging
 
@@ -62,9 +63,8 @@ async def forgot_password(
                 expire_minutes=15
             )
             
-            # Construir enlace de recuperación
-            # Nota: En producción, esto debería ser la URL del frontend
-            reset_url = f"http://localhost:3000/reset-password?token={reset_token}"
+            # Construir enlace de recuperación usando la URL del frontend configurada
+            reset_url = f"{settings.frontend_url}/reset-password?token={reset_token}"
             
             # Preparar el contenido del correo
             subject = "Recuperación de contraseña - Gestión Formación"
