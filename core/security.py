@@ -23,13 +23,14 @@ def create_access_token(data: dict):
     return encoded_jwt
 
 # Función para crear un token de recuperación de contraseña con duración personalizada
-def create_reset_password_token(user_id: int, expire_minutes: int = 15):
+def create_reset_password_token(user_id: int, expire_minutes: int = 15, password_changed_at=None):
     """
     Crear un token JWT específico para recuperación de contraseña
     
     Args:
         user_id: ID del usuario
         expire_minutes: Minutos de expiración (default: 15)
+        password_changed_at: Fecha del último cambio de contraseña (opcional)
     
     Returns:
         str: Token JWT codificado
@@ -38,6 +39,14 @@ def create_reset_password_token(user_id: int, expire_minutes: int = 15):
         "sub": str(user_id),
         "type": "password_reset"
     }
+    
+    # Añadir password_changed_at al payload si está disponible
+    if password_changed_at is not None:
+        # Convertir datetime a string para que sea compatible con JSON
+        if hasattr(password_changed_at, 'isoformat'):
+            to_encode["password_changed_at"] = password_changed_at.isoformat()
+        else:
+            to_encode["password_changed_at"] = str(password_changed_at)
     expire = datetime.now(tz=timezone.utc) + timedelta(minutes=expire_minutes)
     to_encode.update({"exp": expire})
     encoded_jwt = jwt.encode(to_encode, settings.jwt_secret, algorithm=settings.jwt_algorithm)

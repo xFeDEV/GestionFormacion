@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from app.api.dependencies import authenticate_user
 from app.schemas.auth import ResponseLoggin, ForgotPasswordRequest, ForgotPasswordResponse, ValidateResetTokenRequest, ValidateResetTokenResponse, ResetPasswordSchema, ResetPasswordResponse
-from app.crud.users import get_user_by_email, reset_password
+from app.crud.users import get_user_by_email, reset_password, get_user_by_id
 from core.security import create_access_token, create_reset_password_token, verify_reset_password_token
 from core.database import get_db
 from core.email import send_email_async
@@ -57,10 +57,11 @@ async def forgot_password(
         success_message = "Si el correo electrónico está registrado, recibirás un enlace de recuperación."
         
         if user:
-            # Crear token de recuperación de 15 minutos
+            # Crear token de recuperación de 15 minutos incluyendo password_changed_at
             reset_token = create_reset_password_token(
                 user_id=user.id_usuario, 
-                expire_minutes=15
+                expire_minutes=15,
+                password_changed_at=user.password_changed_at
             )
             
             # Construir enlace de recuperación usando la URL del frontend configurada
@@ -193,6 +194,67 @@ async def reset_password_endpoint(
                 status_code=400,
                 detail="La nueva contraseña debe tener al menos 6 caracteres"
             )
+        
+        # Verificar la validez del token y extraer información
+        token_data = verify_reset_password_token(request.token)
+        if not token_data:
+            logger.warning("Intento de reset con token inválido")
+            raise HTTPException(
+                status_code=400,
+                detail="Token inválido o expirado. Solicita un nuevo enlace de recuperación."
+            )
+        
+        user_id = token_data.get("user_id")
+        token_password_changed_at = token_data.get("password_changed_at")
+        
+        if not user_id:
+            logger.warning("Token sin user_id válido")
+            raise HTTPException(
+                status_code=400,
+                detail="Token inválido. Solicita un nuevo enlace de recuperación."
+            )
+        
+        # Obtener el usuario actual de la base de datos
+        current_user = get_user_by_id(db, user_id)
+        if not current_user:
+            logger.warning(f"Usuario con ID {user_id} no encontrado")
+            raise HTTPException(
+                status_code=400,
+                detail="Usuario no encontrado. Solicita un nuevo enlace de recuperación."
+            )
+        
+        # Verificar que el password_changed_at del token coincida con el de la base de datos
+        db_password_changed_at = current_user.password_changed_at
+        
+        # Convertir ambas fechas a strings para comparación
+        if db_password_changed_at and token_password_changed_at:
+            # Si ambas fechas existen, deben coincidir
+            if hasattr(db_password_changed_at, 'isoformat'):
+                db_date_str = db_password_changed_at.isoformat()
+            else:
+                db_date_str = str(db_password_changed_at)
+            
+            if db_date_str != token_password_changed_at:
+                logger.warning(f"Token inválido: password_changed_at no coincide para usuario {user_id}")
+                raise HTTPException(
+                    status_code=400,
+                    detail="Token inválido: la contraseña ya fue cambiada. Solicita un nuevo enlace de recuperación."
+                )
+        elif db_password_changed_at is None and token_password_changed_at is not None:
+            # Usuario no tiene fecha pero token sí - token inválido
+            logger.warning(f"Token inválido: usuario {user_id} no tiene password_changed_at pero token sí")
+            raise HTTPException(
+                status_code=400,
+                detail="Token inválido: la contraseña ya fue cambiada. Solicita un nuevo enlace de recuperación."
+            )
+        elif db_password_changed_at is not None and token_password_changed_at is None:
+            # Usuario tiene fecha pero token no - token inválido
+            logger.warning(f"Token inválido: usuario {user_id} tiene password_changed_at pero token no")
+            raise HTTPException(
+                status_code=400,
+                detail="Token inválido: la contraseña ya fue cambiada. Solicita un nuevo enlace de recuperación."
+            )
+        # Si ambos son None, está permitido (usuario nunca cambió contraseña)
         
         # Llamar a la función CRUD para restablecer contraseña
         result = reset_password(db, request.token, request.new_password)

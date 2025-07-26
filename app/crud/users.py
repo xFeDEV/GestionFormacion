@@ -36,7 +36,7 @@ def get_user_by_email(db: Session, email: str):
     try:
         query = text("""
             SELECT u.id_usuario, u.nombre_completo, u.identificacion, u.id_rol, r.nombre AS nombre_rol,
-                   u.correo, u.tipo_contrato, u.pass_hash, u.telefono, u.estado, u.cod_centro
+                   u.correo, u.tipo_contrato, u.pass_hash, u.telefono, u.estado, u.cod_centro, u.password_changed_at
             FROM usuario u
             INNER JOIN rol r ON u.id_rol = r.id_rol
             WHERE u.correo = :direccion_correo
@@ -54,7 +54,7 @@ def get_user_by_id(db: Session, id_user: int):
     try:
         query = text("""
             SELECT u.id_usuario, u.nombre_completo, u.identificacion, u.id_rol, r.nombre AS nombre_rol,
-                   u.correo, u.tipo_contrato, u.telefono, u.estado, u.cod_centro
+                   u.correo, u.tipo_contrato, u.telefono, u.estado, u.cod_centro, u.password_changed_at
             FROM usuario u
             INNER JOIN rol r ON u.id_rol = r.id_rol
             WHERE u.id_usuario = :id
@@ -134,10 +134,10 @@ def change_password(db: Session, user_id: int, current_password: str, new_passwo
         # Hashear la nueva contraseña
         new_hashed_password = get_hashed_password(new_password)
         
-        # Actualizar la contraseña en la base de datos
+        # Actualizar la contraseña y la fecha de cambio en la base de datos
         update_query = text("""
             UPDATE usuario 
-            SET pass_hash = :new_password 
+            SET pass_hash = :new_password, password_changed_at = NOW()
             WHERE id_usuario = :user_id
         """)
         db.execute(update_query, {
@@ -193,10 +193,10 @@ def reset_password(db: Session, token: str, new_password: str) -> Optional[bool]
         # Hashear la nueva contraseña
         new_hashed_password = get_hashed_password(new_password)
         
-        # Actualizar la contraseña en la base de datos
+        # Actualizar la contraseña y la fecha de cambio en la base de datos
         update_query = text("""
             UPDATE usuario 
-            SET pass_hash = :new_password 
+            SET pass_hash = :new_password, password_changed_at = NOW()
             WHERE id_usuario = :user_id
         """)
         db.execute(update_query, {

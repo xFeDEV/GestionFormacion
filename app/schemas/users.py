@@ -1,5 +1,6 @@
 from pydantic import  BaseModel, EmailStr, Field
 from typing import Optional
+from datetime import datetime
 
 class UserBase(BaseModel):
     nombre_completo: str = Field(min_length=3, max_length=80)
@@ -28,3 +29,4 @@ class UserChangePassword(BaseModel):
 class UserOut(UserBase):
     id_usuario: int
     nombre_rol: Optional[str] = None
+    password_changed_at: Optional[datetime] = None
