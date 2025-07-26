@@ -134,7 +134,6 @@ def get_users_by_centro(
     except SQLAlchemyError as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-
 @router.put("/change-password")
 def change_password(
     password_data: UserChangePassword,
@@ -157,5 +156,21 @@ def change_password(
         
         return {"message": "Contraseña cambiada correctamente"}
     except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.get("/instructores", response_model=List[UserOut])
+def get_instructores(
+    db: Session = Depends(get_db),
+    current_user: UserOut = Depends(get_current_user)
+):
+    """
+    Obtiene una lista de todos los usuarios que tienen el rol de instructor.
+    """
+    try:
+        instructores = crud_users.get_instructores(db)
+        return instructores
+    except Exception as e:
+        if isinstance(e, HTTPException):
+            raise e
         raise HTTPException(status_code=500, detail=str(e))
 

@@ -76,3 +76,16 @@ class GrupoOut(BaseModel):
 class RegionalCreate(BaseModel):
     cod_regional: int
     nombre: str
+
+# --- Schema para búsqueda de grupos en select ---
+class GrupoSelect(BaseModel):
+    cod_ficha: int
+    estado_grupo: Optional[str] = None
+    jornada: Optional[str] = None
+    fecha_inicio: Optional[date] = None
+    fecha_fin: Optional[date] = None
+    etapa: Optional[str] = None
+    nombre_programa: Optional[str] = None
+
+    class Config:
+        from_attributes = True

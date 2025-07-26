@@ -113,7 +113,6 @@ def get_users_by_centro(db: Session, cod_centro: int):
         logger.error(f"Error al obtener usuarios por cod_centro: {e}")
         raise Exception("Error de base de datos al obtener los usuarios")
 
-
 def change_password(db: Session, user_id: int, current_password: str, new_password: str) -> bool:
     try:
         # Obtener el usuario por su ID junto con su contraseña hasheada
@@ -215,3 +214,22 @@ def reset_password(db: Session, token: str, new_password: str) -> Optional[bool]
     except Exception as e:
         logger.error(f"Error inesperado al restablecer contraseña: {e}")
         return None
+
+def get_instructores(db: Session):
+    """
+    Obtiene todos los usuarios que tienen el rol de instructor (id_rol = 3).
+    """
+    try:
+        query = text("""
+            SELECT u.id_usuario, u.nombre_completo, u.identificacion, u.id_rol, r.nombre AS nombre_rol,
+                   u.correo, u.tipo_contrato, u.telefono, u.estado, u.cod_centro
+            FROM usuario u
+            INNER JOIN rol r ON u.id_rol = r.id_rol
+            WHERE u.id_rol = 3 AND u.estado = 1
+            ORDER BY u.nombre_completo
+        """)
+        result = db.execute(query).mappings().all()
+        return result
+    except SQLAlchemyError as e:
+        logger.error(f"Error al obtener instructores: {e}")
+        raise Exception("Error de base de datos al obtener los instructores")
