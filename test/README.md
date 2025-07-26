@@ -1,22 +1,30 @@
 # 🧪 Tests - Gestión Formación
 
-Esta carpeta contiene todos los archivos de prueba del sistema de Gestión Formación.
+Esta carpeta está preparada para contener todos los archivos de prueba del sistema de Gestión Formación.
 
-## 📁 Archivos de Prueba
+## 📁 Estado Actual
+
+La carpeta de tests ha sido limpiada y está lista para futuras implementaciones de pruebas.
+
+## 🚀 Desarrollo de Pruebas
+
+Cuando se desarrollen nuevas pruebas, se recomienda seguir esta estructura:
 
 ### **Autenticación y Seguridad**
 - `test_auth.py` - Pruebas básicas de autenticación
 - `test_forgot_password.py` - Pruebas de solicitud de recuperación de contraseña
 - `test_reset_password.py` - Pruebas de reset de contraseña
-- `test_complete_password_reset_flow.py` - Flujo completo de recuperación
 
-### **Validación de Timestamps**
-- `test_password_changed_at_token.py` - Pruebas de tokens con timestamp
-- `test_password_changed_at_verification.py` - Verificación de invalidación de tokens
+### **Funcionalidades del Sistema**
+- `test_usuarios.py` - Pruebas de gestión de usuarios
+- `test_grupos.py` - Pruebas de gestión de grupos
+- `test_programas.py` - Pruebas de gestión de programas
+- `test_centros.py` - Pruebas de centros de formación
 
-### **Configuración**
-- `test_config.py` - Pruebas de configuración del sistema
-- `test_frontend_config.py` - Pruebas de configuración frontend
+### **APIs y Endpoints**
+- `test_api_auth.py` - Pruebas de endpoints de autenticación
+- `test_api_usuarios.py` - Pruebas de API de usuarios
+- `test_api_grupos.py` - Pruebas de API de grupos
 
 ## 🚀 Cómo Ejecutar las Pruebas
 

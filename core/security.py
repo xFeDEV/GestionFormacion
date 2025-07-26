@@ -2,6 +2,10 @@ from passlib.context import CryptContext
 from datetime import datetime, timedelta, timezone
 from jose import JWTError, jwt
 from core.config import settings
+from fastapi import Depends
+from sqlalchemy.orm import Session
+from app.crud import users as crud_users
+from core.database import get_db
 
 # Configurar hashing de contraseñas
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
@@ -66,33 +70,39 @@ def verify_token(token: str):
         return None
 
 # Función para verificar token de recuperación de contraseña
-def verify_reset_password_token(token: str):
+def verify_reset_password_token(token: str, db: Session = Depends(get_db)):
     """
-    Verificar token de recuperación de contraseña
-    
-    Args:
-        token: Token JWT a verificar
-    
-    Returns:
-        dict: Información del token si es válido, None si no es válido
+    Verifica un token de reseteo. Revisa firma, expiración y si ya fue usado
+    comparando el timestamp 'password_changed_at'.
     """
     try:
-        payload = jwt.decode(token, settings.jwt_secret, algorithms=[settings.jwt_algorithm])
-        user_id = payload.get("sub")
-        token_type = payload.get("type")
+        payload = jwt.decode(
+            token, settings.jwt_secret, algorithms=[settings.jwt_algorithm]
+        )
         
-        # Verificar que sea un token de recuperación de contraseña
+        token_type = payload.get("type")
         if token_type != "password_reset":
+            return None # No es un token de reseteo
+
+        user_id = payload.get("sub")
+        token_timestamp_str = payload.get("password_changed_at")
+
+        if not user_id:
             return None
-            
-        if user_id is not None:
-            return {
-                "user_id": int(user_id),
-                "type": token_type,
-                "exp": payload.get("exp")
-            }
-        return None
-    except jwt.ExpiredSignatureError:
-        return None
+
+        # --- La Lógica de Verificación Completa ---
+        user_in_db = crud_users.get_user_by_id(db, int(user_id))
+        if not user_in_db:
+            return None # El usuario del token ya no existe
+
+        db_timestamp_str = user_in_db.password_changed_at.isoformat() if user_in_db.password_changed_at else None
+
+        # Si los timestamps no coinciden, el token es viejo y ya fue usado
+        if token_timestamp_str != db_timestamp_str:
+            return None
+
+        # Si todo está bien, devuelve el payload
+        return payload
+
     except JWTError:
         return None

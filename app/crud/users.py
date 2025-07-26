@@ -167,13 +167,13 @@ def reset_password(db: Session, token: str, new_password: str) -> Optional[bool]
     """
     try:
         # Decodificar el token para obtener el user_id
-        token_data = verify_reset_password_token(token)
+        token_data = verify_reset_password_token(token, db)
         
         if not token_data:
             logger.warning("Intento de reset con token inválido o expirado")
             return None
             
-        user_id = token_data.get("user_id")
+        user_id = token_data.get("sub")
         if not user_id:
             logger.warning("Token de reset no contiene user_id válido")
             return None

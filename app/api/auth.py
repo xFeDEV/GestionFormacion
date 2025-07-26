@@ -1,6 +1,6 @@
 
 from typing import Annotated
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from app.api.dependencies import authenticate_user
 from app.schemas.auth import ResponseLoggin, ForgotPasswordRequest, ForgotPasswordResponse, ValidateResetTokenRequest, ValidateResetTokenResponse, ResetPasswordSchema, ResetPasswordResponse
@@ -11,6 +11,8 @@ from core.email import send_email_async
 from core.config import settings
 from fastapi.security import OAuth2PasswordRequestForm
 import logging
+from datetime import datetime
+from jose import jwt, JWTError
 
 logger = logging.getLogger(__name__)
 
@@ -138,13 +140,13 @@ async def forgot_password(
 
 
 @router.post("/validate-reset-token", response_model=ValidateResetTokenResponse)
-async def validate_reset_token(request: ValidateResetTokenRequest):
+async def validate_reset_token(request: ValidateResetTokenRequest, db: Session = Depends(get_db)):
     """
     Endpoint para validar un token de recuperación de contraseña.
     Útil para verificar si un token es válido antes de mostrar el formulario de nueva contraseña.
     """
     try:
-        token_data = verify_reset_password_token(request.token)
+        token_data = verify_reset_password_token(request.token, db)
         
         if token_data:
             return ValidateResetTokenResponse(
@@ -196,7 +198,7 @@ async def reset_password_endpoint(
             )
         
         # Verificar la validez del token y extraer información
-        token_data = verify_reset_password_token(request.token)
+        token_data = verify_reset_password_token(request.token, db)
         if not token_data:
             logger.warning("Intento de reset con token inválido")
             raise HTTPException(
@@ -204,7 +206,7 @@ async def reset_password_endpoint(
                 detail="Token inválido o expirado. Solicita un nuevo enlace de recuperación."
             )
         
-        user_id = token_data.get("user_id")
+        user_id = token_data.get("sub")
         token_password_changed_at = token_data.get("password_changed_at")
         
         if not user_id:
