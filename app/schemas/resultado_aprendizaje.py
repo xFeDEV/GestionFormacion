@@ -15,5 +15,7 @@ class ResultadoAprendizajeUpdate(BaseModel):
     cod_competencia: Optional[int] = None
 
 class ResultadoAprendizajeOut(ResultadoAprendizajeBase):
+    horas: Optional[int] = 0  # Horas asignadas al resultado (opcional)
+    
     class Config:
         from_attributes = True

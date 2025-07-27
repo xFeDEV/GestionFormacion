@@ -19,6 +19,9 @@ def get_competencias_by_programa(
 ):
     """
     Obtiene todas las competencias asociadas a un programa de formación específico.
+    
+    Nota: Las competencias están asociadas al programa en general, no a una versión específica,
+    por lo que el parámetro la_version se mantiene por compatibilidad pero no afecta el resultado.
     """
     try:
         competencias = crud_programacion.get_competencias_by_programa(db, cod_programa=cod_programa, la_version=la_version)

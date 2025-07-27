@@ -1,6 +1,12 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
-from app.schemas.grupo_instructor import GrupoInstructorCreate, GrupoInstructorOut, GrupoInstructorUpdate
+from app.schemas.grupo_instructor import (
+    GrupoInstructorCreate, 
+    GrupoInstructorOut, 
+    GrupoInstructorUpdate,
+    InstructorDetallado,
+    GrupoDetallado
+)
 from app.crud import grupo_instructor as crud_grupo_instructor
 from core.database import get_db
 from app.api.dependencies import get_current_user
@@ -26,23 +32,35 @@ def assign_instructor_to_grupo(
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.get("/grupo/{cod_ficha}", response_model=List[GrupoInstructorOut])
+@router.get("/grupo/{cod_ficha}", response_model=List[InstructorDetallado])
 def get_instructores_of_grupo(
     cod_ficha: int,
     db: Session = Depends(get_db),
     current_user: UserOut = Depends(get_current_user)
 ):
-    instructores = crud_grupo_instructor.get_instructores_by_grupo(db, cod_ficha)
-    return instructores
+    """
+    Obtiene todos los instructores asignados a un grupo con información detallada.
+    """
+    try:
+        instructores = crud_grupo_instructor.get_instructores_by_grupo(db, cod_ficha)
+        return instructores
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
-@router.get("/instructor/{id_instructor}", response_model=List[GrupoInstructorOut])
+@router.get("/instructor/{id_instructor}", response_model=List[GrupoDetallado])
 def get_grupos_of_instructor(
     id_instructor: int,
     db: Session = Depends(get_db),
     current_user: UserOut = Depends(get_current_user)
 ):
-    grupos = crud_grupo_instructor.get_grupos_by_instructor(db, id_instructor)
-    return grupos
+    """
+    Obtiene todos los grupos asignados a un instructor con información detallada.
+    """
+    try:
+        grupos = crud_grupo_instructor.get_grupos_by_instructor(db, id_instructor)
+        return grupos
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 @router.put("/{cod_ficha_actual}/{id_instructor_actual}", response_model=GrupoInstructorOut)
 def update_instructor_of_grupo(

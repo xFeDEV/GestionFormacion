@@ -180,22 +180,23 @@ def get_all_programaciones(db: Session, skip: int = 0, limit: int = 100) -> List
         logger.error(f"Error al obtener todas las programaciones: {e}")
         raise Exception("Error de base de datos al obtener las programaciones")
 
-def get_competencias_by_programa(db: Session, cod_programa: int, la_version: int) -> List[dict]:
+def get_competencias_by_programa(db: Session, cod_programa: int, la_version: int = None) -> List[dict]:
     """
     Obtiene las competencias asociadas a un programa de formación específico.
+    Nota: Las competencias están asociadas al programa, no a una versión específica.
     """
     try:
         query = text("""
-            SELECT c.cod_competencia, c.nombre, c.horas
+            SELECT DISTINCT c.cod_competencia, c.nombre, c.horas
             FROM competencia c
             INNER JOIN programa_competencia pc ON c.cod_competencia = pc.cod_competencia
-            WHERE pc.cod_programa = :cod_programa AND pc.la_version = :la_version
+            WHERE pc.cod_programa = :cod_programa
             ORDER BY c.nombre
         """)
-        result = db.execute(query, {"cod_programa": cod_programa, "la_version": la_version}).mappings().all()
+        result = db.execute(query, {"cod_programa": cod_programa}).mappings().all()
         return result
     except Exception as e:
-        logger.error(f"Error al obtener competencias del programa {cod_programa} versión {la_version}: {e}")
+        logger.error(f"Error al obtener competencias del programa {cod_programa}: {e}")
         raise Exception("Error de base de datos al obtener las competencias del programa")
 
 def get_resultados_by_competencia(db: Session, cod_competencia: int) -> List[dict]:
@@ -204,7 +205,7 @@ def get_resultados_by_competencia(db: Session, cod_competencia: int) -> List[dic
     """
     try:
         query = text("""
-            SELECT cod_resultado, nombre, cod_competencia
+            SELECT cod_resultado, nombre, cod_competencia, 0 as horas
             FROM resultado_aprendizaje
             WHERE cod_competencia = :cod_competencia
             ORDER BY nombre
