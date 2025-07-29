@@ -1,6 +1,8 @@
 from sqlalchemy.orm import Session
 from sqlalchemy import text
 from app.schemas.programacion import ProgramacionCreate, ProgramacionUpdate
+from app.crud import notificacion as crud_notificacion
+from app.schemas.notificacion import NotificacionCreate
 from typing import Optional, List
 import logging
 
@@ -36,6 +38,39 @@ def create_programacion(db: Session, programacion: ProgramacionCreate, id_user: 
         
         # Obtener el ID de la programación recién creada
         id_programacion = result.lastrowid
+        
+        # Crear notificación para el instructor
+        try:
+            # Obtener detalles adicionales para el mensaje de notificación
+            notification_query = text("""
+                SELECT p.cod_ficha, p.fecha_programada, p.hora_inicio, p.hora_fin,
+                       c.nombre as nombre_competencia
+                FROM programacion p
+                LEFT JOIN competencia c ON p.cod_competencia = c.cod_competencia
+                WHERE p.id_programacion = :id_programacion
+            """)
+            programacion_details = db.execute(notification_query, {"id_programacion": id_programacion}).mappings().first()
+            
+            if programacion_details:
+                # Construir mensaje descriptivo
+                mensaje = (f"Has sido asignado a la ficha {programacion_details['cod_ficha']} "
+                          f"en la competencia {programacion_details['nombre_competencia']} "
+                          f"para el día {programacion_details['fecha_programada']} "
+                          f"de {programacion_details['hora_inicio']} a {programacion_details['hora_fin']}.")
+                
+                # Crear la notificación
+                nueva_notificacion = NotificacionCreate(
+                    id_usuario=programacion.id_instructor,
+                    mensaje=mensaje,
+                    leida=False
+                )
+                
+                # Guardar la notificación
+                crud_notificacion.create_notification(db=db, notificacion=nueva_notificacion)
+                
+        except Exception as notif_error:
+            # Log del error pero no fallar la creación de programación
+            logger.warning(f"Error al crear notificación para programación {id_programacion}: {notif_error}")
         
         # Retornar la programación creada
         return get_programacion_by_id(db, id_programacion)
