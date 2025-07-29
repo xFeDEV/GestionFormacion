@@ -11,6 +11,7 @@ from app.api import centro_formacion
 from app.api import programacion
 from app.api import competencia
 from app.api import resultado_aprendizaje
+from app.api import festivos
 
 
 
@@ -29,6 +30,7 @@ app.include_router(centro_formacion.router, prefix="/centro-formacion", tags=["C
 app.include_router(programacion.router, prefix="/programacion", tags=["Programacion"])
 app.include_router(competencia.router, prefix="/competencias", tags=["Competencias"])
 app.include_router(resultado_aprendizaje.router, prefix="/resultados", tags=["Resultados de Aprendizaje"])
+app.include_router(festivos.router, prefix="/festivos", tags=["Festivos"])
 
 # Configuración de CORS para permitir todas las solicitudes desde cualquier origen
 app.add_middleware(
