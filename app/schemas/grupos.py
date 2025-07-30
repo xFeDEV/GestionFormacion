@@ -89,3 +89,29 @@ class GrupoSelect(BaseModel):
 
     class Config:
         from_attributes = True
+
+# --- Schemas para el Dashboard ---
+
+class DashboardKPISchema(BaseModel):
+    """ Schema para la tarjeta de KPI de total de grupos. """
+    total_grupo: int
+
+class GruposPorMunicipioSchema(BaseModel):
+    municipio: str
+    cantidad: int
+
+class GruposPorJornadaSchema(BaseModel):
+    jornada: str
+    cantidad: int
+
+class GruposPorModalidadSchema(BaseModel):
+    modalidad: str
+    cantidad: int
+    
+class GruposPorEtapaSchema(BaseModel):
+    etapa: str
+    cantidad: int
+
+class GruposPorNivelSchema(BaseModel):
+    nivel: str
+    cantidad: int

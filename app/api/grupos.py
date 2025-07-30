@@ -1,12 +1,12 @@
 from ast import List
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.orm import Session
-from app.schemas.grupos import GrupoUpdate, GrupoOut, GrupoSelect
+from app.schemas.grupos import GrupoUpdate, GrupoOut, GrupoSelect, DashboardKPISchema, GruposPorMunicipioSchema, GruposPorJornadaSchema, GruposPorModalidadSchema, GruposPorEtapaSchema, GruposPorNivelSchema
 from app.crud import grupos as crud_grupo
 from core.database import get_db
 from app.api.dependencies import get_current_user
 from app.schemas.users import UserOut
-from typing import List
+from typing import List, Optional
 
 router = APIRouter()
 
@@ -44,6 +44,109 @@ def get_grupos_by_centro(
     grupos_db = crud_grupo.get_grupos_by_cod_centro(db, cod_centro=cod_centro)
     # Si no se encuentran grupos, devuelve una lista vacía, lo cual es correcto.
     return grupos_db
+
+
+@router.get("/kpis", response_model=DashboardKPISchema)
+def get_dashboard_kpis(
+    cod_centro: int = Query(..., description="Código del centro de formación (Obligatorio)"),
+    estado_grupo: str = Query(..., description="Estado del grupo (Obligatorio)"),
+    año: Optional[int] = Query(None, description="Filtrar por año de inicio (Opcional)"),
+    db: Session = Depends(get_db),
+    current_user: UserOut = Depends(get_current_user)
+):
+    """
+    Obtiene el número total de grupos según los filtros aplicados.
+    """
+    try:
+        kpis = crud_grupo.get_dashboard_kpis(db, cod_centro=cod_centro, estado_grupo=estado_grupo, año=año)
+        return kpis
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# --- Endpoints de Distribución con Filtros ---
+
+@router.get("/distribucion/por-municipio", response_model=List[GruposPorMunicipioSchema])
+def get_distribucion_por_municipio(
+    cod_centro: int = Query(..., description="Código del centro de formación (Obligatorio)"),
+    estado_grupo: str = Query(..., description="Estado del grupo (Obligatorio)"),
+    año: Optional[int] = Query(None, description="Filtrar por año de inicio (Opcional)"),
+    db: Session = Depends(get_db),
+    current_user: UserOut = Depends(get_current_user)
+):
+    """
+    Obtiene la distribución de grupos por municipio con filtros.
+    """
+    try:
+        return crud_grupo.get_grupos_por_municipio_filtrado(db, cod_centro, estado_grupo, año)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.get("/distribucion/por-jornada", response_model=List[GruposPorJornadaSchema])
+def get_distribucion_por_jornada(
+    cod_centro: int = Query(..., description="Código del centro de formación (Obligatorio)"),
+    estado_grupo: str = Query(..., description="Estado del grupo (Obligatorio)"),
+    año: Optional[int] = Query(None, description="Filtrar por año de inicio (Opcional)"),
+    db: Session = Depends(get_db),
+    current_user: UserOut = Depends(get_current_user)
+):
+    """
+    Obtiene la distribución de grupos por jornada con filtros.
+    """
+    try:
+        return crud_grupo.get_grupos_por_jornada_filtrado(db, cod_centro, estado_grupo, año)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.get("/distribucion/por-modalidad", response_model=List[GruposPorModalidadSchema])
+def get_distribucion_por_modalidad(
+    cod_centro: int = Query(..., description="Código del centro de formación (Obligatorio)"),
+    estado_grupo: str = Query(..., description="Estado del grupo (Obligatorio)"),
+    año: Optional[int] = Query(None, description="Filtrar por año de inicio (Opcional)"),
+    db: Session = Depends(get_db),
+    current_user: UserOut = Depends(get_current_user)
+):
+    """
+    Obtiene la distribución de grupos por modalidad con filtros.
+    """
+    try:
+        return crud_grupo.get_grupos_por_modalidad_filtrado(db, cod_centro, estado_grupo, año)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.get("/distribucion/por-etapa", response_model=List[GruposPorEtapaSchema])
+def get_distribucion_por_etapa(
+    cod_centro: int = Query(..., description="Código del centro de formación (Obligatorio)"),
+    estado_grupo: str = Query(..., description="Estado del grupo (Obligatorio)"),
+    año: Optional[int] = Query(None, description="Filtrar por año de inicio (Opcional)"),
+    db: Session = Depends(get_db),
+    current_user: UserOut = Depends(get_current_user)
+):
+    """
+    Obtiene la distribución de grupos por etapa con filtros.
+    """
+    try:
+        return crud_grupo.get_grupos_por_etapa_filtrado(db, cod_centro, estado_grupo, año)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.get("/distribucion/por-nivel", response_model=List[GruposPorNivelSchema])
+def get_distribucion_por_nivel(
+    cod_centro: int = Query(..., description="Código del centro de formación (Obligatorio)"),
+    estado_grupo: str = Query(..., description="Estado del grupo (Obligatorio)"),
+    año: Optional[int] = Query(None, description="Filtrar por año de inicio (Opcional)"),
+    db: Session = Depends(get_db),
+    current_user: UserOut = Depends(get_current_user)
+):
+    """
+    Obtiene la distribución de grupos por nivel de formación con filtros.
+    """
+    try:
+        return crud_grupo.get_grupos_por_nivel_filtrado(db, cod_centro, estado_grupo, año)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 
 # Rutas paramétricas al final
 
@@ -91,3 +194,5 @@ def update_grupo(
         if isinstance(e, HTTPException):
             raise e
         raise HTTPException(status_code=500, detail=str(e))
+
+

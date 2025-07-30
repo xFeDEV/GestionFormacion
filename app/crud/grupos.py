@@ -3,8 +3,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import text
 from app.schemas.grupos import GrupoUpdate
 from typing import Optional, List
-import logging
-
+import logging 
 logger = logging.getLogger(__name__)
 
 def get_grupo_by_cod_ficha(db: Session, cod_ficha: int) -> Optional[dict]:
@@ -142,3 +141,100 @@ def search_grupos_for_select(db: Session, search_text: str = "", limit: int = 20
     except Exception as e:
         logger.error(f"Error al buscar grupos: {e}")
         raise Exception("Error de base de datos al buscar grupos")
+
+# --- Funciones para el Dashboard con Filtros ---
+
+def _build_dynamic_where_clause(
+    cod_centro: int,
+    estado_grupo: str,
+    año: Optional[int] = None
+) -> tuple[str, dict]:
+    """Función auxiliar para construir cláusulas WHERE dinámicas y seguras."""
+    conditions = ["g.cod_centro = :cod_centro", "g.estado_grupo = :estado_grupo"]
+    params = {"cod_centro": cod_centro, "estado_grupo": estado_grupo}
+    
+    if año is not None:
+        conditions.append("YEAR(g.fecha_inicio) = :año")
+        params["año"] = año
+        
+    return "WHERE " + " AND ".join(conditions), params
+
+def get_dashboard_kpis(db: Session, cod_centro: int, estado_grupo: str, año: Optional[int]) -> dict:
+    """
+    Calcula el número total de grupos basado en filtros obligatorios y un año opcional.
+    """
+    try:
+        where_clause, params = _build_dynamic_where_clause(cod_centro, estado_grupo, año)
+        query = text(f"SELECT COUNT(cod_ficha) as total_grupo FROM grupo g {where_clause}")
+        
+        # .scalar() es ideal para obtener un único valor de una consulta
+        total = db.execute(query, params).scalar() or 0
+        return {"total_grupo": total}
+    except Exception as e:
+        logger.error(f"Error al calcular KPIs del dashboard: {e}")
+        raise Exception("Error de base de datos al calcular KPIs")
+
+def get_grupos_por_municipio_filtrado(db: Session, cod_centro: int, estado_grupo: str, año: Optional[int]) -> List[dict]:
+    try:
+        where_clause, params = _build_dynamic_where_clause(cod_centro, estado_grupo, año)
+        query_str = f"""
+            SELECT nombre_municipio AS municipio, COUNT(cod_ficha) AS cantidad
+            FROM grupo g {where_clause}
+            GROUP BY nombre_municipio ORDER BY cantidad DESC
+        """
+        return db.execute(text(query_str), params).mappings().all()
+    except Exception as e:
+        logger.error(f"Error al obtener grupos filtrados por municipio: {e}")
+        raise Exception("Error de base de datos al agrupar por municipio")
+
+def get_grupos_por_jornada_filtrado(db: Session, cod_centro: int, estado_grupo: str, año: Optional[int]) -> List[dict]:
+    try:
+        where_clause, params = _build_dynamic_where_clause(cod_centro, estado_grupo, año)
+        query_str = f"""
+            SELECT jornada, COUNT(cod_ficha) AS cantidad
+            FROM grupo g {where_clause}
+            GROUP BY jornada ORDER BY cantidad DESC
+        """
+        return db.execute(text(query_str), params).mappings().all()
+    except Exception as e:
+        logger.error(f"Error al obtener grupos filtrados por jornada: {e}")
+        raise Exception("Error de base de datos al agrupar por jornada")
+
+def get_grupos_por_modalidad_filtrado(db: Session, cod_centro: int, estado_grupo: str, año: Optional[int]) -> List[dict]:
+    try:
+        where_clause, params = _build_dynamic_where_clause(cod_centro, estado_grupo, año)
+        query_str = f"""
+            SELECT modalidad, COUNT(cod_ficha) AS cantidad
+            FROM grupo g {where_clause}
+            GROUP BY modalidad ORDER BY cantidad DESC
+        """
+        return db.execute(text(query_str), params).mappings().all()
+    except Exception as e:
+        logger.error(f"Error al obtener grupos filtrados por modalidad: {e}")
+        raise Exception("Error de base de datos al agrupar por modalidad")
+
+def get_grupos_por_etapa_filtrado(db: Session, cod_centro: int, estado_grupo: str, año: Optional[int]) -> List[dict]:
+    try:
+        where_clause, params = _build_dynamic_where_clause(cod_centro, estado_grupo, año)
+        query_str = f"""
+            SELECT etapa, COUNT(cod_ficha) AS cantidad
+            FROM grupo g {where_clause}
+            GROUP BY etapa ORDER BY cantidad DESC
+        """
+        return db.execute(text(query_str), params).mappings().all()
+    except Exception as e:
+        logger.error(f"Error al obtener grupos filtrados por etapa: {e}")
+        raise Exception("Error de base de datos al agrupar por etapa")
+
+def get_grupos_por_nivel_filtrado(db: Session, cod_centro: int, estado_grupo: str, año: Optional[int]) -> List[dict]:
+    try:
+        where_clause, params = _build_dynamic_where_clause(cod_centro, estado_grupo, año)
+        query_str = f"""
+            SELECT nombre_nivel AS nivel, COUNT(cod_ficha) AS cantidad
+            FROM grupo g {where_clause}
+            GROUP BY nombre_nivel ORDER BY cantidad DESC
+        """
+        return db.execute(text(query_str), params).mappings().all()
+    except Exception as e:
+        logger.error(f"Error al obtener grupos filtrados por nivel: {e}")
+        raise Exception("Error de base de datos al agrupar por nivel")
