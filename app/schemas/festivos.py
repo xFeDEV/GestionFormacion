@@ -6,7 +6,7 @@ class FestivoOut(BaseModel):
     festivo: date
 
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 class FestivosResponse(BaseModel):
     festivos: List[date]
@@ -14,4 +14,4 @@ class FestivosResponse(BaseModel):
     total_dias: int
 
     class Config:
-        orm_mode = True
+        from_attributes = True

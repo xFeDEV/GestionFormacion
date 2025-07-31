@@ -28,9 +28,28 @@ def create_programa(
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.get("/", response_model=List[ProgramaOut])
-def get_all_programas(db: Session = Depends(get_db), current_user: UserOut = Depends(get_current_user)):
-    programas = crud_programa.get_programas(db)
+def get_all_programas(
+    skip: int = 0, 
+    limit: int = 20, 
+    db: Session = Depends(get_db), 
+    current_user: UserOut = Depends(get_current_user)
+):
+    programas = crud_programa.get_programas(db, skip=skip, limit=limit)
     return programas
+
+@router.get("/search/", response_model=List[ProgramaOut])
+def search_programas(
+    query: str,
+    skip: int = 0, 
+    limit: int = 20, 
+    db: Session = Depends(get_db), 
+    current_user: UserOut = Depends(get_current_user)
+):
+    try:
+        programas = crud_programa.search_programas(db, search_term=query, skip=skip, limit=limit)
+        return programas
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 @router.get("/{cod_programa}", response_model=ProgramaOut)
 def get_programa_by_id(cod_programa: int, db: Session = Depends(get_db), current_user: UserOut = Depends(get_current_user)):
