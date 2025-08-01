@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
-from app.schemas.programas import ProgramaCreate, ProgramaUpdate, ProgramaOut
+from app.schemas.programas import ProgramaCreate, ProgramaUpdate, ProgramaOut, ProgramaPage
 from app.crud import programas as crud_programa
 from core.database import get_db
 from app.api.dependencies import get_current_user
@@ -27,17 +27,17 @@ def create_programa(
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.get("/", response_model=List[ProgramaOut])
+@router.get("/", response_model=ProgramaPage)
 def get_all_programas(
     skip: int = 0, 
     limit: int = 20, 
     db: Session = Depends(get_db), 
     current_user: UserOut = Depends(get_current_user)
 ):
-    programas = crud_programa.get_programas(db, skip=skip, limit=limit)
-    return programas
+    result = crud_programa.get_programas(db, skip=skip, limit=limit)
+    return result
 
-@router.get("/search/", response_model=List[ProgramaOut])
+@router.get("/search/", response_model=ProgramaPage)
 def search_programas(
     query: str,
     skip: int = 0, 
@@ -46,8 +46,8 @@ def search_programas(
     current_user: UserOut = Depends(get_current_user)
 ):
     try:
-        programas = crud_programa.search_programas(db, search_term=query, skip=skip, limit=limit)
-        return programas
+        result = crud_programa.search_programas(db, search_term=query, skip=skip, limit=limit)
+        return result
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 

@@ -1,5 +1,5 @@
 from pydantic import BaseModel, Field
-from typing import Optional
+from typing import Optional, List
 
 class ProgramaBase(BaseModel):
     cod_programa: int
@@ -26,3 +26,7 @@ class ProgramaOut(ProgramaBase):
     class Config:
         # Permite que Pydantic lea los datos de un objeto de base de datos
         from_attributes = True
+
+class ProgramaPage(BaseModel):
+    total_items: int
+    items: List[ProgramaOut]

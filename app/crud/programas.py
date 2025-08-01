@@ -41,35 +41,58 @@ def get_programa(db: Session, cod_programa: int):
         logger.error(f"Error al obtener programa: {e}")
         raise Exception("Error de base de datos al obtener el programa")
 
-def get_programas(db: Session, skip: int = 0, limit: int = 20) -> List:
+def get_programas(db: Session, skip: int = 0, limit: int = 20):
     try:
+        # Consulta para obtener el conteo total
+        count_query = text("SELECT COUNT(*) as total FROM programa_formacion")
+        total_count = db.execute(count_query).scalar()
+        
+        # Consulta para obtener los programas paginados
         query = text("""
             SELECT cod_programa, la_version, nombre, horas_lectivas, horas_productivas
             FROM programa_formacion
             LIMIT :limit OFFSET :skip
         """)
         result = db.execute(query, {"limit": limit, "skip": skip}).mappings().all()
-        return result
+        
+        return {
+            "items": result,
+            "total_items": total_count
+        }
     except SQLAlchemyError as e:
         logger.error(f"Error al obtener programas: {e}")
         raise Exception("Error de base de datos al obtener los programas")
 
-def search_programas(db: Session, search_term: str, skip: int = 0, limit: int = 20) -> List:
+def search_programas(db: Session, search_term: str, skip: int = 0, limit: int = 20):
     try:
+        # Añadir wildcards para la búsqueda LIKE
+        search_pattern = f"%{search_term}%"
+        
+        # Consulta para obtener el conteo total de resultados de búsqueda
+        count_query = text("""
+            SELECT COUNT(*) as total 
+            FROM programa_formacion 
+            WHERE nombre LIKE :search_term
+        """)
+        total_count = db.execute(count_query, {"search_term": search_pattern}).scalar()
+        
+        # Consulta para obtener los programas paginados
         query = text("""
             SELECT cod_programa, la_version, nombre, horas_lectivas, horas_productivas
             FROM programa_formacion
             WHERE nombre LIKE :search_term
             LIMIT :limit OFFSET :skip
         """)
-        # Añadir wildcards para la búsqueda LIKE
-        search_pattern = f"%{search_term}%"
         result = db.execute(query, {
             "search_term": search_pattern, 
             "limit": limit, 
             "skip": skip
         }).mappings().all()
-        return result
+        
+        return {
+            "items": result,
+            "total_items": total_count
+        }
     except SQLAlchemyError as e:
         logger.error(f"Error al buscar programas: {e}")
         raise Exception("Error de base de datos al buscar los programas")
