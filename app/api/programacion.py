@@ -1,6 +1,8 @@
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.orm import Session
-from app.schemas.programacion import ProgramacionCreate, ProgramacionUpdate, ProgramacionOut, CompetenciaOut, ResultadoAprendizajeOut
+from sqlalchemy import text
+from app.schemas.programacion import (ProgramacionCreate, ProgramacionUpdate, ProgramacionOut, 
+                                    CompetenciaOut, ResultadoAprendizajeOut, ValidarCruceRequest, ValidarCruceResponse)
 from app.crud import programacion as crud_programacion
 from core.database import get_db
 from app.api.dependencies import get_current_user
@@ -8,6 +10,59 @@ from app.schemas.users import UserOut
 from typing import List
 
 router = APIRouter()
+
+@router.post("/validar-cruce", response_model=ValidarCruceResponse)
+def validar_cruce_programacion(
+    request: ValidarCruceRequest,
+    db: Session = Depends(get_db),
+    current_user: UserOut = Depends(get_current_user)
+):
+    """
+    Valida si existe un cruce de horarios para una programación.
+    
+    Verifica si el instructor ya tiene una programación que se solape 
+    en la fecha y horario especificados.
+    """
+    if current_user.id_rol not in [1, 2, 3]:
+        raise HTTPException(status_code=403, detail="No autorizado para realizar esta acción")
+    
+    try:
+        # Construir consulta base
+        verificacion_query_base = """
+            SELECT COUNT(*) as conflictos
+            FROM programacion 
+            WHERE id_instructor = :id_instructor 
+              AND fecha_programada = :fecha_programada
+              AND ((:hora_inicio < hora_fin) AND (:hora_fin > hora_inicio))
+        """
+        
+        # Parámetros base
+        verificacion_params = {
+            "id_instructor": request.id_instructor,
+            "fecha_programada": request.fecha_programada,
+            "hora_inicio": request.hora_inicio,
+            "hora_fin": request.hora_fin
+        }
+        
+        # Si se proporciona id_programacion_actual, excluirlo de la verificación
+        if request.id_programacion_actual is not None:
+            verificacion_query_base += " AND id_programacion != :id_programacion_actual"
+            verificacion_params["id_programacion_actual"] = request.id_programacion_actual
+        
+        verificacion_query = text(verificacion_query_base)
+        resultado_verificacion = db.execute(verificacion_query, verificacion_params).mappings().first()
+        
+        conflicto = resultado_verificacion and resultado_verificacion['conflictos'] > 0
+        
+        return ValidarCruceResponse(
+            conflicto=conflicto,
+            mensaje="El instructor ya tiene una programación que se cruza en este horario" if conflicto else "No hay conflictos de horario"
+        )
+        
+    except Exception as e:
+        if isinstance(e, HTTPException):
+            raise e
+        raise HTTPException(status_code=500, detail=f"Error al validar cruce de programación: {str(e)}")
 
 # Endpoints específicos primero para evitar conflictos con rutas paramétricas
 @router.get("/competencias/{cod_programa}/{la_version}", response_model=List[CompetenciaOut])

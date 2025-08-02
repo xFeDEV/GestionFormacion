@@ -66,4 +66,16 @@ class ResultadoAprendizajeOut(BaseModel):
     cod_competencia: int
 
     class Config:
-        from_attributes = True 
+        from_attributes = True
+
+# Esquemas para Validación de Cruce de Programación
+class ValidarCruceRequest(BaseModel):
+    id_instructor: int
+    fecha_programada: date
+    hora_inicio: time
+    hora_fin: time
+    id_programacion_actual: Optional[int] = None
+
+class ValidarCruceResponse(BaseModel):
+    conflicto: bool
+    mensaje: Optional[str] = None 

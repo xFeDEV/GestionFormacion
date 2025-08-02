@@ -1,5 +1,6 @@
 from sqlalchemy.orm import Session
 from sqlalchemy import text
+from fastapi import HTTPException
 from app.schemas.programacion import ProgramacionCreate, ProgramacionUpdate
 from app.crud import notificacion as crud_notificacion
 from app.schemas.notificacion import NotificacionCreate
@@ -13,6 +14,30 @@ def create_programacion(db: Session, programacion: ProgramacionCreate, id_user: 
     Crea una nueva programación.
     """
     try:
+        # Verificar conflictos de horarios antes del INSERT
+        verificacion_query = text("""
+            SELECT COUNT(*) as conflictos
+            FROM programacion 
+            WHERE id_instructor = :id_instructor 
+              AND fecha_programada = :fecha_programada
+              AND ((:hora_inicio < hora_fin) AND (:hora_fin > hora_inicio))
+        """)
+        
+        verificacion_params = {
+            "id_instructor": programacion.id_instructor,
+            "fecha_programada": programacion.fecha_programada,
+            "hora_inicio": programacion.hora_inicio,
+            "hora_fin": programacion.hora_fin
+        }
+        
+        resultado_verificacion = db.execute(verificacion_query, verificacion_params).mappings().first()
+        
+        if resultado_verificacion and resultado_verificacion['conflictos'] > 0:
+            raise HTTPException(
+                status_code=409, 
+                detail="El instructor ya tiene una programación que se cruza en este horario"
+            )
+        
         query = text("""
             INSERT INTO programacion 
             (id_instructor, cod_ficha, fecha_programada, horas_programadas, 
@@ -77,6 +102,8 @@ def create_programacion(db: Session, programacion: ProgramacionCreate, id_user: 
         
     except Exception as e:
         db.rollback()
+        if isinstance(e, HTTPException):
+            raise e
         logger.error(f"Error al crear la programación: {e}")
         raise Exception("Error de base de datos al crear la programación")
 
@@ -160,6 +187,48 @@ def update_programacion(db: Session, id_programacion: int, programacion: Program
         if not fields:
             return False
         
+        # Verificar conflictos de horarios antes del UPDATE (solo si se modifican datos relacionados con horarios)
+        if any(field in fields for field in ['id_instructor', 'fecha_programada', 'hora_inicio', 'hora_fin']):
+            # Obtener datos actuales de la programación para completar la verificación
+            current_data_query = text("""
+                SELECT id_instructor, fecha_programada, hora_inicio, hora_fin
+                FROM programacion 
+                WHERE id_programacion = :id_programacion
+            """)
+            current_data = db.execute(current_data_query, {"id_programacion": id_programacion}).mappings().first()
+            
+            if current_data:
+                # Usar los valores nuevos si están en fields, sino usar los actuales
+                id_instructor = fields.get('id_instructor', current_data['id_instructor'])
+                fecha_programada = fields.get('fecha_programada', current_data['fecha_programada'])
+                hora_inicio = fields.get('hora_inicio', current_data['hora_inicio'])
+                hora_fin = fields.get('hora_fin', current_data['hora_fin'])
+                
+                verificacion_query = text("""
+                    SELECT COUNT(*) as conflictos
+                    FROM programacion 
+                    WHERE id_instructor = :id_instructor 
+                      AND fecha_programada = :fecha_programada
+                      AND id_programacion != :id_programacion_actual
+                      AND ((:hora_inicio < hora_fin) AND (:hora_fin > hora_inicio))
+                """)
+                
+                verificacion_params = {
+                    "id_instructor": id_instructor,
+                    "fecha_programada": fecha_programada,
+                    "hora_inicio": hora_inicio,
+                    "hora_fin": hora_fin,
+                    "id_programacion_actual": id_programacion
+                }
+                
+                resultado_verificacion = db.execute(verificacion_query, verificacion_params).mappings().first()
+                
+                if resultado_verificacion and resultado_verificacion['conflictos'] > 0:
+                    raise HTTPException(
+                        status_code=409, 
+                        detail="El instructor ya tiene una programación que se cruza en este horario"
+                    )
+        
         # Construye la parte SET de la consulta SQL dinámicamente
         set_clause = ", ".join([f"{key} = :{key}" for key in fields])
 
@@ -174,6 +243,8 @@ def update_programacion(db: Session, id_programacion: int, programacion: Program
         return result.rowcount > 0
     except Exception as e:
         db.rollback()
+        if isinstance(e, HTTPException):
+            raise e
         logger.error(f"Error al actualizar la programación: {e}")
         raise Exception("Error de base de datos al actualizar la programación")
 
