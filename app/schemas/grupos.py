@@ -1,5 +1,5 @@
 from pydantic import BaseModel, Field, field_validator
-from typing import Optional
+from typing import Optional, List
 from datetime import date, time, timedelta
 
 # --- Schema para DatosGrupo ---
@@ -115,3 +115,8 @@ class GruposPorEtapaSchema(BaseModel):
 class GruposPorNivelSchema(BaseModel):
     nivel: str
     cantidad: int
+
+# --- Schema para respuesta paginada de grupos ---
+class GrupoPage(BaseModel):
+    total_items: int
+    items: List[GrupoOut]

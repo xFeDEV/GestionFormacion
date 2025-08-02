@@ -19,17 +19,62 @@ def get_grupo_by_cod_ficha(db: Session, cod_ficha: int) -> Optional[dict]:
         raise Exception("Error de base de datos al obtener el grupo")
     
 
-def get_grupos_by_cod_centro(db: Session, cod_centro: int) -> List[dict]:
+def get_grupos_by_cod_centro(db: Session, cod_centro: int, skip: int = 0, limit: int = 20):
     """
-    Obtiene todos los grupos que pertenecen a un centro de formación específico.
+    Obtiene todos los grupos que pertenecen a un centro de formación específico con paginación.
     """
     try:
-        query = text("SELECT * FROM grupo WHERE cod_centro = :cod_centro")
-        result = db.execute(query, {"cod_centro": cod_centro}).mappings().all()
-        return result
+        # Consulta para obtener el conteo total
+        count_query = text("SELECT COUNT(*) as total FROM grupo WHERE cod_centro = :cod_centro")
+        total_count = db.execute(count_query, {"cod_centro": cod_centro}).scalar()
+        
+        # Consulta para obtener los grupos paginados
+        query = text("""
+            SELECT * FROM grupo 
+            WHERE cod_centro = :cod_centro 
+            LIMIT :limit OFFSET :skip
+        """)
+        result = db.execute(query, {
+            "cod_centro": cod_centro, 
+            "limit": limit, 
+            "skip": skip
+        }).mappings().all()
+        
+        return {
+            "items": result,
+            "total_items": total_count
+        }
     except Exception as e:
         logger.error(f"Error al obtener los grupos por el centro {cod_centro}: {e}")
-        raise Exception("Error de base de datos al obtener el grupo por centro")   
+        raise Exception("Error de base de datos al obtener el grupo por centro")
+
+def get_grupos(db: Session, skip: int = 0, limit: int = 20):
+    """
+    Obtiene todos los grupos del sistema con paginación.
+    """
+    try:
+        # Consulta para obtener el conteo total
+        count_query = text("SELECT COUNT(*) as total FROM grupo")
+        total_count = db.execute(count_query).scalar()
+        
+        # Consulta para obtener los grupos paginados
+        query = text("""
+            SELECT * FROM grupo 
+            ORDER BY cod_ficha DESC
+            LIMIT :limit OFFSET :skip
+        """)
+        result = db.execute(query, {
+            "limit": limit, 
+            "skip": skip
+        }).mappings().all()
+        
+        return {
+            "items": result,
+            "total_items": total_count
+        }
+    except Exception as e:
+        logger.error(f"Error al obtener todos los grupos: {e}")
+        raise Exception("Error de base de datos al obtener los grupos")   
 
 
 def update_grupo(db: Session, cod_ficha: int, grupo: GrupoUpdate) -> bool:

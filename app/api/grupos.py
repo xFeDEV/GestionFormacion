@@ -1,7 +1,7 @@
 from ast import List
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.orm import Session
-from app.schemas.grupos import GrupoUpdate, GrupoOut, GrupoSelect, DashboardKPISchema, GruposPorMunicipioSchema, GruposPorJornadaSchema, GruposPorModalidadSchema, GruposPorEtapaSchema, GruposPorNivelSchema
+from app.schemas.grupos import GrupoUpdate, GrupoOut, GrupoSelect, DashboardKPISchema, GruposPorMunicipioSchema, GruposPorJornadaSchema, GruposPorModalidadSchema, GruposPorEtapaSchema, GruposPorNivelSchema, GrupoPage
 from app.crud import grupos as crud_grupo
 from core.database import get_db
 from app.api.dependencies import get_current_user
@@ -32,18 +32,47 @@ def search_grupos_for_select(
             raise e
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.get("/centro/{cod_centro}", response_model=List[GrupoOut])
-def get_grupos_by_centro(
-    cod_centro: int,
+@router.get("/", response_model=GrupoPage)
+def get_all_grupos(
+    skip: int = 0,
+    limit: int = 20,
     db: Session = Depends(get_db),
     current_user: UserOut = Depends(get_current_user)
 ):
     """
-    Obtiene una lista de todos los grupos que pertenecen a un centro de formación.
+    Obtiene una lista paginada de todos los grupos del sistema.
+    Solo disponible para administradores.
     """
-    grupos_db = crud_grupo.get_grupos_by_cod_centro(db, cod_centro=cod_centro)
-    # Si no se encuentran grupos, devuelve una lista vacía, lo cual es correcto.
-    return grupos_db
+    # Solo superadmin (1) y admin (2) pueden ver todos los grupos
+    if current_user.id_rol not in [1, 2]:
+        raise HTTPException(status_code=401, detail="No autorizado para ver todos los grupos")
+    
+    try:
+        result = crud_grupo.get_grupos(db, skip=skip, limit=limit)
+        return result
+    except Exception as e:
+        if isinstance(e, HTTPException):
+            raise e
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.get("/centro/{cod_centro}", response_model=GrupoPage)
+def get_grupos_by_centro(
+    cod_centro: int,
+    skip: int = 0,
+    limit: int = 20,
+    db: Session = Depends(get_db),
+    current_user: UserOut = Depends(get_current_user)
+):
+    """
+    Obtiene una lista paginada de todos los grupos que pertenecen a un centro de formación.
+    """
+    try:
+        result = crud_grupo.get_grupos_by_cod_centro(db, cod_centro=cod_centro, skip=skip, limit=limit)
+        return result
+    except Exception as e:
+        if isinstance(e, HTTPException):
+            raise e
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.get("/kpis", response_model=DashboardKPISchema)
