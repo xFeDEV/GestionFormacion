@@ -17,6 +17,27 @@ def get_grupo_by_cod_ficha(db: Session, cod_ficha: int) -> Optional[dict]:
     except Exception as e:
         logger.error(f"Error al obtener el grupo {cod_ficha}: {e}")
         raise Exception("Error de base de datos al obtener el grupo")
+
+def get_grupo_enriquecido_by_cod_ficha(db: Session, cod_ficha: int) -> Optional[dict]:
+    """
+    Obtiene un grupo específico por su cod_ficha con información enriquecida (nombres de programa y ambiente).
+    """
+    try:
+        query = text("""
+            SELECT 
+                g.*,
+                pf.nombre as nombre_programa,
+                af.nombre_ambiente
+            FROM grupo g
+            LEFT JOIN programa_formacion pf ON g.cod_programa = pf.cod_programa AND g.la_version = pf.la_version
+            LEFT JOIN ambiente_formacion af ON g.id_ambiente = af.id_ambiente
+            WHERE g.cod_ficha = :cod_ficha
+        """)
+        result = db.execute(query, {"cod_ficha": cod_ficha}).mappings().first()
+        return result
+    except Exception as e:
+        logger.error(f"Error al obtener el grupo enriquecido {cod_ficha}: {e}")
+        raise Exception("Error de base de datos al obtener el grupo enriquecido")
     
 
 def get_grupos_by_cod_centro(db: Session, cod_centro: int, skip: int = 0, limit: int = 20):
@@ -107,7 +128,8 @@ def search_grupos_for_select(db: Session, search_text: str = "", limit: int = 20
     """
     Busca grupos para usar en un select/autocompletar.
     Retorna información básica de los grupos que coincidan con el texto de búsqueda.
-    Busca por código de ficha (numérico), nombre del programa o responsable (texto).
+    Busca por código de ficha (numérico), nombre del programa, responsable o nombre del ambiente (texto).
+    Incluye información enriquecida con nombres de programa y ambiente.
     """
     try:
         # Si no hay texto de búsqueda, obtener todos los grupos activos
@@ -120,9 +142,12 @@ def search_grupos_for_select(db: Session, search_text: str = "", limit: int = 20
                     g.fecha_inicio,
                     g.fecha_fin,
                     g.etapa,
-                    pf.nombre as nombre_programa
+                    g.responsable,
+                    pf.nombre as nombre_programa,
+                    af.nombre_ambiente
                 FROM grupo g
                 LEFT JOIN programa_formacion pf ON g.cod_programa = pf.cod_programa AND g.la_version = pf.la_version
+                LEFT JOIN ambiente_formacion af ON g.id_ambiente = af.id_ambiente
                 WHERE g.estado_grupo NOT IN ('CANCELADO', 'CERRADO')
                 ORDER BY g.cod_ficha DESC
                 LIMIT :limit
@@ -143,9 +168,12 @@ def search_grupos_for_select(db: Session, search_text: str = "", limit: int = 20
                         g.fecha_inicio,
                         g.fecha_fin,
                         g.etapa,
-                        pf.nombre as nombre_programa
+                        g.responsable,
+                        pf.nombre as nombre_programa,
+                        af.nombre_ambiente
                     FROM grupo g
                     LEFT JOIN programa_formacion pf ON g.cod_programa = pf.cod_programa AND g.la_version = pf.la_version
+                    LEFT JOIN ambiente_formacion af ON g.id_ambiente = af.id_ambiente
                     WHERE CAST(g.cod_ficha AS CHAR) LIKE :search_pattern
                     AND g.estado_grupo NOT IN ('CANCELADO', 'CERRADO')
                     ORDER BY g.cod_ficha ASC
@@ -156,7 +184,7 @@ def search_grupos_for_select(db: Session, search_text: str = "", limit: int = 20
                     "limit": limit
                 }).mappings().all()
             else:
-                # Para texto: buscar en nombre de programa y responsable con coincidencia parcial
+                # Para texto: buscar en nombre de programa, responsable y nombre de ambiente con coincidencia parcial
                 search_pattern = f"%{search_text}%"
                 query = text("""
                     SELECT 
@@ -166,15 +194,21 @@ def search_grupos_for_select(db: Session, search_text: str = "", limit: int = 20
                         g.fecha_inicio,
                         g.fecha_fin,
                         g.etapa,
-                        pf.nombre as nombre_programa
+                        g.responsable,
+                        pf.nombre as nombre_programa,
+                        af.nombre_ambiente
                     FROM grupo g
                     LEFT JOIN programa_formacion pf ON g.cod_programa = pf.cod_programa AND g.la_version = pf.la_version
-                    WHERE (UPPER(pf.nombre) LIKE UPPER(:search_pattern) OR UPPER(g.responsable) LIKE UPPER(:search_pattern))
+                    LEFT JOIN ambiente_formacion af ON g.id_ambiente = af.id_ambiente
+                    WHERE (UPPER(pf.nombre) LIKE UPPER(:search_pattern) 
+                           OR UPPER(g.responsable) LIKE UPPER(:search_pattern)
+                           OR UPPER(af.nombre_ambiente) LIKE UPPER(:search_pattern))
                     AND g.estado_grupo NOT IN ('CANCELADO', 'CERRADO')
                     ORDER BY 
                         CASE WHEN UPPER(pf.nombre) LIKE UPPER(:exact_pattern) THEN 1 
                              WHEN UPPER(g.responsable) LIKE UPPER(:exact_pattern) THEN 2 
-                             ELSE 3 END,
+                             WHEN UPPER(af.nombre_ambiente) LIKE UPPER(:exact_pattern) THEN 3
+                             ELSE 4 END,
                         g.cod_ficha DESC
                     LIMIT :limit
                 """)

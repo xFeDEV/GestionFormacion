@@ -70,6 +70,15 @@ class GrupoOut(BaseModel):
 
     class Config:
         # Permite que Pydantic lea los datos directamente de un objeto de base de datos
+        from_attributes = True
+
+# --- Schema enriquecido para mostrar datos con información relacionada ---
+class GrupoEnriched(GrupoOut):
+    """Schema enriquecido que incluye nombres de tablas relacionadas"""
+    nombre_programa: Optional[str] = None
+    nombre_ambiente: Optional[str] = None
+
+    class Config:
         from_attributes = True 
 
 # --- Schema para Regional ---
@@ -85,7 +94,9 @@ class GrupoSelect(BaseModel):
     fecha_inicio: Optional[date] = None
     fecha_fin: Optional[date] = None
     etapa: Optional[str] = None
+    responsable: Optional[str] = None
     nombre_programa: Optional[str] = None
+    nombre_ambiente: Optional[str] = None
 
     class Config:
         from_attributes = True

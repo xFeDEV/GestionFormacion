@@ -1,7 +1,7 @@
 from ast import List
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.orm import Session
-from app.schemas.grupos import GrupoUpdate, GrupoOut, GrupoSelect, DashboardKPISchema, GruposPorMunicipioSchema, GruposPorJornadaSchema, GruposPorModalidadSchema, GruposPorEtapaSchema, GruposPorNivelSchema, GrupoPage, GrupoAdvancedPage
+from app.schemas.grupos import GrupoUpdate, GrupoOut, GrupoSelect, GrupoEnriched, DashboardKPISchema, GruposPorMunicipioSchema, GruposPorJornadaSchema, GruposPorModalidadSchema, GruposPorEtapaSchema, GruposPorNivelSchema, GrupoPage, GrupoAdvancedPage
 from app.crud import grupos as crud_grupo
 from core.database import get_db
 from app.api.dependencies import get_current_user
@@ -14,14 +14,15 @@ router = APIRouter()
 
 @router.get("/search", response_model=List[GrupoSelect])
 def search_grupos_for_select(
-    search: str = Query("", description="Texto para buscar en código de ficha, nombre de programa o responsable"),
+    search: str = Query("", description="Texto para buscar en código de ficha, nombre de programa, responsable o nombre del ambiente"),
     limit: int = Query(20, ge=1, le=100, description="Número máximo de resultados"),
     db: Session = Depends(get_db),
     current_user: UserOut = Depends(get_current_user)
 ):
     """
     Busca grupos para usar en un select/autocompletar.
-    Permite buscar por código de ficha, nombre del programa o responsable.
+    Permite buscar por código de ficha, nombre del programa, responsable o nombre del ambiente.
+    Incluye información enriquecida con nombres de programa y ambiente.
     Útil para formularios donde se necesita seleccionar un grupo.
     """
     try:
@@ -232,18 +233,18 @@ def get_distribucion_por_nivel(
 
 # Rutas paramétricas al final
 
-@router.get("/{cod_ficha}", response_model=GrupoOut)
+@router.get("/{cod_ficha}", response_model=GrupoEnriched)
 def get_grupo(
     cod_ficha: int,
     db: Session = Depends(get_db),
     current_user: UserOut = Depends(get_current_user)
 ):
     """
-    Obtiene un grupo específico por su cod_ficha.
-    Maneja correctamente los valores nulos y los horarios en 00:00:00.
+    Obtiene un grupo específico por su cod_ficha con información enriquecida.
+    Incluye nombres de programa y ambiente. Maneja correctamente los valores nulos y los horarios en 00:00:00.
     """
     try:
-        grupo = crud_grupo.get_grupo_by_cod_ficha(db, cod_ficha=cod_ficha)
+        grupo = crud_grupo.get_grupo_enriquecido_by_cod_ficha(db, cod_ficha=cod_ficha)
         if grupo is None:
             raise HTTPException(status_code=404, detail="Grupo no encontrado")
         return grupo
