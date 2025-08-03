@@ -1,7 +1,7 @@
 from ast import List
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.orm import Session
-from app.schemas.grupos import GrupoUpdate, GrupoOut, GrupoSelect, DashboardKPISchema, GruposPorMunicipioSchema, GruposPorJornadaSchema, GruposPorModalidadSchema, GruposPorEtapaSchema, GruposPorNivelSchema, GrupoPage
+from app.schemas.grupos import GrupoUpdate, GrupoOut, GrupoSelect, DashboardKPISchema, GruposPorMunicipioSchema, GruposPorJornadaSchema, GruposPorModalidadSchema, GruposPorEtapaSchema, GruposPorNivelSchema, GrupoPage, GrupoAdvancedPage
 from app.crud import grupos as crud_grupo
 from core.database import get_db
 from app.api.dependencies import get_current_user
@@ -27,6 +27,29 @@ def search_grupos_for_select(
     try:
         grupos = crud_grupo.search_grupos_for_select(db, search_text=search, limit=limit)
         return grupos
+    except Exception as e:
+        if isinstance(e, HTTPException):
+            raise e
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.get("/advanced-search/", response_model=GrupoAdvancedPage)
+def advanced_search_grupos(
+    query: str,
+    cod_centro: int,
+    skip: int = 0,
+    limit: int = 20,
+    db: Session = Depends(get_db),
+    current_user: UserOut = Depends(get_current_user)
+):
+    """
+    Búsqueda avanzada de grupos con información enriquecida.
+    Busca en código de ficha, nombre del responsable y nombre del programa.
+    Filtra SIEMPRE por el código de centro proporcionado.
+    Incluye información del responsable y programa de formación.
+    """
+    try:
+        result = crud_grupo.advanced_search_grupos(db, search_term=query, cod_centro=cod_centro, skip=skip, limit=limit)
+        return result
     except Exception as e:
         if isinstance(e, HTTPException):
             raise e

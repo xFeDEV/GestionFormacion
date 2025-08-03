@@ -187,6 +187,64 @@ def search_grupos_for_select(db: Session, search_text: str = "", limit: int = 20
         logger.error(f"Error al buscar grupos: {e}")
         raise Exception("Error de base de datos al buscar grupos")
 
+def advanced_search_grupos(db: Session, search_term: str, cod_centro: int, skip: int = 0, limit: int = 20):
+    """
+    Búsqueda avanzada de grupos con JOIN a programas de formación.
+    Busca en código de ficha, nombre del responsable y nombre del programa.
+    Filtra SIEMPRE por el código de centro proporcionado.
+    """
+    try:
+        # Añadir wildcards para la búsqueda LIKE
+        search_pattern = f"%{search_term}%"
+        
+        # Construir la cláusula WHERE base para la búsqueda + filtro de centro
+        where_conditions = [
+            "CAST(g.cod_ficha AS CHAR) LIKE :search_term",
+            "g.responsable LIKE :search_term", 
+            "pf.nombre LIKE :search_term"
+        ]
+        where_clause = f"WHERE ({' OR '.join(where_conditions)}) AND g.cod_centro = :cod_centro"
+        
+        # Parámetros 
+        params = {
+            "search_term": search_pattern,
+            "cod_centro": cod_centro
+        }
+        
+        # Consulta para obtener el conteo total de resultados de búsqueda
+        count_query = text(f"""
+            SELECT COUNT(*) as total 
+            FROM grupo g
+            LEFT JOIN programa_formacion pf ON g.cod_programa = pf.cod_programa AND g.la_version = pf.la_version
+            {where_clause}
+        """)
+        total_count = db.execute(count_query, params).scalar()
+        
+        # Consulta para obtener los grupos paginados con información completa
+        query = text(f"""
+            SELECT 
+                g.*,
+                pf.nombre as programa_nombre
+            FROM grupo g
+            LEFT JOIN programa_formacion pf ON g.cod_programa = pf.cod_programa AND g.la_version = pf.la_version
+            {where_clause}
+            ORDER BY g.cod_ficha DESC
+            LIMIT :limit OFFSET :skip
+        """)
+        
+        # Agregar parámetros de paginación
+        params.update({"limit": limit, "skip": skip})
+        
+        result = db.execute(query, params).mappings().all()
+        
+        return {
+            "items": result,
+            "total_items": total_count
+        }
+    except Exception as e:
+        logger.error(f"Error en búsqueda avanzada de grupos: {e}")
+        raise Exception("Error de base de datos en búsqueda avanzada de grupos")
+
 # --- Funciones para el Dashboard con Filtros ---
 
 def _build_dynamic_where_clause(

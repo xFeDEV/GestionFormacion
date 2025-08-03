@@ -90,6 +90,14 @@ class GrupoSelect(BaseModel):
     class Config:
         from_attributes = True
 
+# --- Schema para búsqueda avanzada con información adicional ---
+class GrupoAdvancedOut(GrupoOut):
+    """Schema para búsqueda avanzada que incluye información adicional de programas"""
+    programa_nombre: Optional[str] = None
+
+    class Config:
+        from_attributes = True
+
 # --- Schemas para el Dashboard ---
 
 class DashboardKPISchema(BaseModel):
@@ -120,3 +128,8 @@ class GruposPorNivelSchema(BaseModel):
 class GrupoPage(BaseModel):
     total_items: int
     items: List[GrupoOut]
+
+# --- Schema para respuesta paginada de búsqueda avanzada ---
+class GrupoAdvancedPage(BaseModel):
+    total_items: int
+    items: List[GrupoAdvancedOut]
