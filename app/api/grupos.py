@@ -14,14 +14,14 @@ router = APIRouter()
 
 @router.get("/search", response_model=List[GrupoSelect])
 def search_grupos_for_select(
-    search: str = Query("", description="Texto para buscar en código de ficha o nombre de programa"),
+    search: str = Query("", description="Texto para buscar en código de ficha, nombre de programa o responsable"),
     limit: int = Query(20, ge=1, le=100, description="Número máximo de resultados"),
     db: Session = Depends(get_db),
     current_user: UserOut = Depends(get_current_user)
 ):
     """
     Busca grupos para usar en un select/autocompletar.
-    Permite buscar por código de ficha o nombre del programa.
+    Permite buscar por código de ficha, nombre del programa o responsable.
     Útil para formularios donde se necesita seleccionar un grupo.
     """
     try:

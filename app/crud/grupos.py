@@ -107,6 +107,7 @@ def search_grupos_for_select(db: Session, search_text: str = "", limit: int = 20
     """
     Busca grupos para usar en un select/autocompletar.
     Retorna información básica de los grupos que coincidan con el texto de búsqueda.
+    Busca por código de ficha (numérico), nombre del programa o responsable (texto).
     """
     try:
         # Si no hay texto de búsqueda, obtener todos los grupos activos
@@ -155,7 +156,7 @@ def search_grupos_for_select(db: Session, search_text: str = "", limit: int = 20
                     "limit": limit
                 }).mappings().all()
             else:
-                # Para texto: buscar en nombre de programa con coincidencia parcial
+                # Para texto: buscar en nombre de programa y responsable con coincidencia parcial
                 search_pattern = f"%{search_text}%"
                 query = text("""
                     SELECT 
@@ -168,10 +169,12 @@ def search_grupos_for_select(db: Session, search_text: str = "", limit: int = 20
                         pf.nombre as nombre_programa
                     FROM grupo g
                     LEFT JOIN programa_formacion pf ON g.cod_programa = pf.cod_programa AND g.la_version = pf.la_version
-                    WHERE UPPER(pf.nombre) LIKE UPPER(:search_pattern)
+                    WHERE (UPPER(pf.nombre) LIKE UPPER(:search_pattern) OR UPPER(g.responsable) LIKE UPPER(:search_pattern))
                     AND g.estado_grupo NOT IN ('CANCELADO', 'CERRADO')
                     ORDER BY 
-                        CASE WHEN UPPER(pf.nombre) LIKE UPPER(:exact_pattern) THEN 1 ELSE 2 END,
+                        CASE WHEN UPPER(pf.nombre) LIKE UPPER(:exact_pattern) THEN 1 
+                             WHEN UPPER(g.responsable) LIKE UPPER(:exact_pattern) THEN 2 
+                             ELSE 3 END,
                         g.cod_ficha DESC
                     LIMIT :limit
                 """)
