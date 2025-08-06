@@ -100,8 +100,8 @@ async def upload_excel(
     df = df.dropna(subset=required_fields)
 
     # Convertir fechas
-    df["fecha_inicio"] = pd.to_datetime(df["fecha_inicio"], errors="coerce").dt.date
-    df["fecha_fin"] = pd.to_datetime(df["fecha_fin"], errors="coerce").dt.date
+    df["fecha_inicio"] = pd.to_datetime(df["fecha_inicio"], format='%d/%m/%Y', errors="coerce").dt.date
+    df["fecha_fin"] = pd.to_datetime(df["fecha_fin"], format='%d/%m/%Y', errors="coerce").dt.date
     
     # Reemplazar valores NaT con None para compatibilidad con la base de datos
     df["fecha_inicio"] = df["fecha_inicio"].where(pd.notnull(df["fecha_inicio"]), None)

@@ -114,26 +114,32 @@ class GrupoAdvancedOut(GrupoOut):
 class DashboardKPISchema(BaseModel):
     """ Schema para la tarjeta de KPI de total de grupos. """
     total_grupo: int
+    total_aprendices_formacion: int
 
 class GruposPorMunicipioSchema(BaseModel):
     municipio: str
     cantidad: int
+    total_aprendices_formacion: int
 
 class GruposPorJornadaSchema(BaseModel):
     jornada: str
     cantidad: int
+    total_aprendices_formacion: int
 
 class GruposPorModalidadSchema(BaseModel):
     modalidad: str
     cantidad: int
-    
+    total_aprendices_formacion: int
+
 class GruposPorEtapaSchema(BaseModel):
     etapa: str
     cantidad: int
+    total_aprendices_formacion: int
 
 class GruposPorNivelSchema(BaseModel):
     nivel: str
     cantidad: int
+    total_aprendices_formacion: int
 
 # --- Schema para respuesta paginada de grupos ---
 class GrupoPage(BaseModel):
